@@ -1,0 +1,37 @@
+name: Loom Terraform review (example)
+
+on:
+  pull_request:
+    paths:
+      - "**/*.tf"
+
+permissions:
+  contents: read
+
+jobs:
+  loom-security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+      - name: Build Loom
+        run: go build -o loom ./cmd/loom
+      - name: Configure Loom
+        env:
+          DEVMIND_TOKEN: ${{ secrets.DEVMIND_TOKEN }}
+        run: |
+          cp loom.config.example.json loom.config.json
+          jq --arg token "$DEVMIND_TOKEN" '.governance.token = $token' loom.config.json > loom.config.ci.json
+          mv loom.config.ci.json loom.config.json
+      - name: Review Terraform diff
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          DIFF="$(git diff --unified=0 "origin/${{ github.base_ref }}"...HEAD -- '*.tf')"
+          test -n "$DIFF"
+          ./loom run --task security_review --non-interactive "Revisa este diff de Terraform y solicita una accion solo si es imprescindible:
+          $DIFF"

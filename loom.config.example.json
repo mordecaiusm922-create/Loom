@@ -1,0 +1,65 @@
+{
+  "default_provider": "openai",
+  "providers": {
+    "anthropic": { "model": "claude-sonnet-4-6" },
+    "ollama": { "model": "qwen2.5-coder:7b", "base_url": "http://localhost:11434" }
+  },
+  "custom_providers": [
+    {
+      "id": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4.1-mini",
+      "api_key_env": "OPENAI_API_KEY",
+      "supports_tooling": true,
+      "cost_input_per_mtok": 0.4,
+      "cost_output_per_mtok": 1.6
+    },
+    {
+      "id": "groq",
+      "base_url": "https://api.groq.com/openai/v1",
+      "model": "llama-3.3-70b-versatile",
+      "api_key_env": "GROQ_API_KEY",
+      "supports_tooling": true,
+      "cost_input_per_mtok": 0.0,
+      "cost_output_per_mtok": 0.0
+    },
+    {
+      "id": "local-vllm",
+      "base_url": "http://localhost:8000/v1",
+      "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "api_key_env": "",
+      "supports_tooling": true,
+      "cost_input_per_mtok": 0.0,
+      "cost_output_per_mtok": 0.0
+    }
+  ],
+  "routing": [
+    { "task": "trivial_edit", "provider": "local-vllm" },
+    { "task": "planning", "provider": "openai" },
+    { "task": "security_review", "provider": "openai" },
+    { "task": "incident_response", "provider": "openai" }
+  ],
+  "mcp_servers": [],
+  "governance": {
+    "enabled": true,
+    "engine": "devmind",
+    "base_url": "https://devmind-2cej.onrender.com",
+    "token": ""
+  },
+  "sre": {
+    "kube_context": "",
+    "cloud": {
+      "provider": "aws",
+      "profile": ""
+    },
+    "observability": {
+      "prometheus_url": "http://localhost:9090",
+      "grafana_url": "",
+      "grafana_token_env": "GRAFANA_TOKEN",
+      "datadog_site": "datadoghq.com",
+      "datadog_api_key_env": "DATADOG_API_KEY",
+      "datadog_app_key_env": "DATADOG_APP_KEY"
+    },
+    "runbooks_dir": "runbooks"
+  }
+}

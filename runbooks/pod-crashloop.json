@@ -1,0 +1,12 @@
+{
+  "title": "Pod en CrashLoopBackOff",
+  "task_hint": "incident_response",
+  "steps": [
+    "k8s_get pods en el namespace afectado para confirmar el estado y el conteo de reinicios",
+    "k8s_describe del pod para revisar los ultimos Events (OOMKilled, liveness probe failing, image pull error, etc.)",
+    "k8s_logs --previous del contenedor que crashea, para ver el error justo antes del ultimo reinicio",
+    "Si el patron sugiere un despliegue reciente, revisar (con cloud_read o powershell de solo lectura) el historial de rollout",
+    "Proponer una accion concreta (rollback, ajustar limites de recursos, corregir config) y el impacto/riesgo antes de aplicarla",
+    "Tras aplicar el cambio, k8s_get de nuevo para confirmar que el pod estabilizo"
+  ]
+}
