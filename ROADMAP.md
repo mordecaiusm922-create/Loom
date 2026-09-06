@@ -149,9 +149,122 @@ sesion.
 
 ## Fase 3 — Integracion con DevMind (bloqueado por la madurez de DevMind)
 
-No arrancar esta fase hasta que DevMind tenga: (a) un contrato de
-`ChangeType`/decision estable, y (b) un servidor MCP real expuesto. Empezar
-antes significa reescribir esta fase cuando el contrato cambie.
+No arrancar 3.1–3.4 hasta que DevMind tenga: (a) un contrato de
+`ChangeType`/decision estable, (b) un servidor MCP real expuesto, y (c) un
+contrato de break-glass/flag-org consultable (definido en 3.0 abajo).
+Empezar antes significa reescribir esta fase cuando el contrato cambie.
+3.0 (diseño) está decidido; 3.1–3.4 siguen bloqueadas.
+
+### 3.0 Pre-trabajo: relacion entre el bypass local y el break-glass de DevMind — DECIDIDO
+
+**Estado: decidido (diseño, sin codigo en este ticket).**
+
+**Contexto**: Loom tiene `LOOM_UNSAFE_DISABLE_GOVERNANCE=1`, un bypass total
+y silencioso: `NewSession` (`internal/agent/loop.go`) reemplaza el
+`governance.Engine` por un `NoopEngine` local que devuelve `ALLOW` a todo,
+sin avisar a ningun servidor. Peor: el `.jsonl` local registra esos eventos
+con `Engine: "policy"/"infra"`, indistinguibles de aprobaciones reales de
+DevMind. DevMind, del otro lado, ya tiene break-glass por llamada
+(`break_glass=true` + justificacion obligatoria, solo BLOCK/REVIEW, nunca
+ESCALATE, logueado en `break_glass_log`) y planea una bandera org
+server-side para PROHIBIR el break-glass. El dia que Loom hable con DevMind
+por MCP, esa bandera no frena a un usuario que exporta la variable local y
+simplemente nunca llama al servidor. Hay que resolverlo en el diseño ANTES
+de escribir el cliente MCP (3.1).
+
+**Nota de procedencia (regla 5)**: el ticket describia una seccion "Opciones
+a evaluar (a, b, c)" que NO existia en este archivo al momento de decidir
+(verificado por busqueda: sin "3.0" ni "break-glass" en ROADMAP.md). Las
+opciones (a)–(c) abajo son la reconstruccion fiel del problema planteado en
+el ticket, no una cita del archivo; (d) es la propuesta nueva.
+
+**Limite honesto del threat model (vale para las tres opciones)**: Loom
+corre en la maquina del usuario, que controla env vars, config y binario.
+Ningun check client-side puede IMPEDIR un bypass a un cliente deshonesto
+(recompilar sin esas 5 lineas lleva minutos). La garantia alcanzable no es
+prevencion criptografica sino triple: (1) los clientes honestos obedecen la
+politica del servidor, (2) todo bypass es declarado, justificado y
+auditado, (3) el enforcement real vive donde el usuario no es trusted
+(ejecucion server-side o credenciales de corta duracion brokeradas por
+DevMind — fuera del alcance de 3.x, anotado abajo como futuro, no como
+promesa de este diseño).
+
+**Opciones evaluadas**:
+- **(a) Eliminar el bypass** (quitar la env var y `NoopEngine`; gobernanza
+  siempre obligatoria). **Rechazada**: rompe el uso legitimo sin red
+  (desarrollo y tests — `internal/agent/loop_test.go` la usa — e incidentes
+  donde el control plane no responde) y es teatro de seguridad: no impide
+  nada contra binario modificado, empuja a workarounds peores y encima le da
+  a la org una falsa confianza ("prohibido" que no prohibe).
+- **(b) Bypass ruidoso pero local** (banner, justificacion, marca en el
+  `.jsonl`). **Rechazada como solucion completa, valida como pieza**: el
+  ruido local no es control org-level; el servidor sigue sin enterarse y el
+  caso del ticket (org que prohibe, usuario que bypassea igual) queda intacto.
+- **(c) Break-glass mediado por servidor** (la env var solo SOLICITA;
+  DevMind autoriza/deniega segun la flag org con un grant de corta
+  duracion; sin red, fail-closed). **Correcta en direccion, ingenua en su
+  forma pura**: fail-closed-sin-red deja a Loom muerto justo en el incidente
+  donde mas se necesita (el patron AWS real existe precisamente para cuando
+  el control plane no responde), y "el servidor prohibe" no frena a un
+  cliente que simplemente no pregunta — hay que decirlo o mentimos en el
+  diseño.
+- **(d) Break-glass declarado con doble modo + paridad ESCALATE +
+  reconciliacion (propuesta nueva, adoptada; superset de b+c)**.
+
+**Decision (d)**:
+1. Separar dos conceptos hoy conflados en una sola env var: **modo DEV**
+   (tests/desarrollo local, sin infra real; via explicita de desarrollo,
+   nunca contra prod) vs **break-glass PROD** (emergencia con infra real;
+   unico camino con gobernanza desactivada contra produccion).
+2. Eliminar el Noop silencioso: deprecar
+   `LOOM_UNSAFE_DISABLE_GOVERNANCE=1` y reemplazarla por un break-glass
+   declarado que exige justificacion no vacia, confirmacion interactiva
+   (`--non-interactive` lo deniega fail-closed, igual que REVIEW/ESCALATE en
+   4.3), y marca la sesion entera como BREAK-GLASS (banner, `Engine:
+   "break-glass"` en cada evento en vez del `"policy"/"infra"` engañoso
+   actual, justificacion persistida en el `.jsonl`).
+3. **Mediacion server cuando hay conectividad**: Loom consulta la flag org
+   (cache local con TTL); si la org prohibe, se deniega fail-closed para el
+   cliente honesto; si permite, grant de corta duracion con log dual
+   (`break_glass_log` en server + `.jsonl` local) y revision post-incidente
+   obligatoria.
+4. **Modo offline accountable cuando NO hay conectividad** (o cache
+   vencida/ausente): permitido SOLO con justificacion + confirmacion + log
+   local marcado UNRECONCILED + reenvio best-effort al reconectar (mismo
+   principio que 3.3: fail-open-en-disponibilidad, fail-closed-en-decision).
+   La garantia contra cliente deshonesto es deteccion/atribucion en la
+   reconciliacion, no prevencion — dicho explicitamente.
+5. **Paridad ESCALATE**: ningun modo (ni break-glass autorizado ni offline)
+   puede overridear ESCALATE — cierra el hueco actual donde el Noop local es
+   MAS permisivo que el break-glass server-side, y respeta el invariante ya
+   decidido en DevMind.
+6. **Limite documentado**: el enforcement criptografico real (DevMind
+   brokeando credenciales efimeras o ejecutando server-side) queda como
+   trabajo futuro fuera de 3.x; este diseño no lo promete.
+**Por que (d) y no las otras**: (a) miente sobre lo que puede garantizar y
+rompe lo legitimo; (b) no mueve la aguja org-level; (c) pura deja sin
+herramienta el incidente sin red y calla el limite del cliente deshonesto.
+(d) conserva lo rescatable de cada una — de (b) el ruido local obligatorio,
+de (c) la mediacion server y la flag org para honestos — y agrega lo que
+faltaba: split DEV/PROD, offline accountable con reconciliacion, paridad
+ESCALATE, y el limite del trust boundary por escrito para que nadie lea la
+flag org como una prohibicion criptografica que no es.
+**Consecuencias para 3.1–3.4**: 3.1 ahora exige de DevMind, ademas de (a) y
+(b), **(c) contrato break-glass**: lectura de flag org `allow_break_glass`
+(con TTL documentado), RPC de grant con justificacion requerida, y
+`break_glass_log` consultable para reconciliacion. 3.3 reutiliza el mismo
+transporte para el reenvio offline.
+**Criterio de aceptacion (este ticket, diseño)**: esta seccion existe y
+3.1–3.4 la referencian; ningun codigo cambia. El ticket de implementacion
+debera probar que algo LEE cada flag/env nuevo (regla aprendida del bug
+`--dry-run`), que offline exige justificacion, que ESCALATE nunca se
+overridea, y que el evento lleva `Engine: "break-glass"`.
+**Depende de**: nada en codigo; de DevMind solo para implementar (c).
+**Tamaño**: S (diseño, hecho aqui); implementacion futura M.
+**Toca (futuro, NO en este ticket)**: `internal/governance/*` (metodo
+break-glass en la interfaz), `internal/agent/loop.go`, `cmd/loom/main.go`,
+`internal/config/config.go`, sink de reconciliacion (reusa 3.3), README
+(deprecacion de la env var vieja).
 
 ### 3.1 Cliente `governance.Engine` sobre MCP
 **Por que**: reemplazar la implementacion REST actual por MCP, sin tocar el
@@ -263,8 +376,10 @@ Recomendado: 2.2 (`--dry-run`) primero por ser el mas chico y el que mas
 valor inmediato da para ensayar runbooks sin riesgo, despues 2.5, 2.1, 2.4,
 2.3 en ese orden.
 
-La Fase 3 completa esta bloqueada hasta que DevMind confirme un contrato
-MCP estable — no vale la pena empezar 3.1 antes de eso, se reescribiria.
+La Fase 3.0 (diseño) esta decidida; 3.1–3.4 siguen bloqueadas hasta que
+DevMind confirme (a) contrato `ChangeType`/decision estable, (b) servidor
+MCP real, y (c) contrato break-glass/flag-org de 3.0 — no vale la pena
+empezar 3.1 antes de eso, se reescribiria.
 
 La Fase 4 depende de decisiones de producto (que backend de control plane,
 que proveedor de SSO) que estan fuera del alcance de este repo.
