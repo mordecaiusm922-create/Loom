@@ -383,35 +383,39 @@ func TestReviewRequiresConfirmation(t *testing.T) {
 }
 
 func TestNonInteractiveReviewNeverExecutesTool(t *testing.T) {
-	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Review}}
-	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
-	registry.SetNonInteractive(true)
+	for _, decision := range []governance.Decision{governance.Review, governance.Escalate} {
+		t.Run(string(decision), func(t *testing.T) {
+			engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: decision}}
+			registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
+			registry.SetNonInteractive(true)
 
-	executed := false
-	confirmationRequested := false
-	registry.SetConfirmation(func(governance.Decision, *governance.EvaluateResponse) bool {
-		confirmationRequested = true
-		return true
-	})
-	if err := registry.Register(Tool{
-		Name: "requires-review",
-		Run: func(context.Context, map[string]any) (string, error) {
-			executed = true
-			return "should not run", nil
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
+			executed := false
+			confirmationRequested := false
+			registry.SetConfirmation(func(governance.Decision, *governance.EvaluateResponse) bool {
+				confirmationRequested = true
+				return true
+			})
+			if err := registry.Register(Tool{
+				Name: "requires-review",
+				Run: func(context.Context, map[string]any) (string, error) {
+					executed = true
+					return "should not run", nil
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
 
-	_, err := registry.Execute(context.Background(), "requires-review", nil, false)
-	if err == nil || !strings.Contains(err.Error(), "revision humana") || !strings.Contains(err.Error(), "no interactivo") {
-		t.Fatalf("err = %v, want a non-interactive human-review error", err)
-	}
-	if confirmationRequested {
-		t.Fatal("confirmation callback was called in non-interactive mode")
-	}
-	if executed {
-		t.Fatal("tool ran after a REVIEW decision in non-interactive mode")
+			_, err := registry.Execute(context.Background(), "requires-review", nil, false)
+			if err == nil || !strings.Contains(err.Error(), "revision humana") || !strings.Contains(err.Error(), "no interactivo") {
+				t.Fatalf("err = %v, want a non-interactive human-review error", err)
+			}
+			if confirmationRequested {
+				t.Fatal("confirmation callback was called in non-interactive mode")
+			}
+			if executed {
+				t.Fatalf("tool ran after a %s decision in non-interactive mode", decision)
+			}
+		})
 	}
 }
 
