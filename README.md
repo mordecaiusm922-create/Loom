@@ -69,6 +69,32 @@ which matters when a team's cloud footprint spans more than one OS.
   - Read-only cloud/k8s calls and observability queries are left unclassified
     on purpose, so they route through the low-risk generic policy engine
     instead of the infra engine.
+- **Argv-based change classification.** Commands are split on shell
+  separators, tokenized honoring quotes, stripped of wrappers (`VAR=x`,
+  `sudo`, `env`, `npx`, `bundle exec`, ...), and classified by the real
+  binary and subcommand, so `terraform -chdir=infra apply`, `kubectl
+  --context prod delete`, `kubectl.exe delete`, `& terraform apply` and
+  `bash -c "..."` are all caught. Opaque execution (`iex`,
+  `Invoke-Expression`, `eval`, `pwsh -EncodedCommand`) goes to the infra
+  engine. `terraform plan` is `terraform_plan`, not an apply. The evasion
+  suite in `internal/tools/classify_test.go` only grows.
+- **Environment resolution.** Declare your environments under
+  `sre.environments` (kube contexts, cloud profiles, Terraform workspaces,
+  repo paths → `prod|staging|dev`). Every call is resolved against them,
+  including the `sre.kube_context` the native `k8s_*` tools inject; a
+  whole-word keyword heuristic is only the fallback. An infrastructure
+  change whose target cannot be resolved is evaluated as production.
+- **Secrets never reach the model.** `read_file`/`write_file` refuse
+  credential files (`~/.aws/credentials`, kubeconfig, `.env*`, `*.pem`,
+  `*.key`, `~/.ssh`, `*.tfstate`, ...), resolving `~`, relative paths and
+  symlinks first. Every tool output is redacted (cloud keys, JWTs, tokens,
+  URL credentials, `password=...`, Kubernetes Secret `data:`) and capped
+  at `sre.max_tool_output_bytes` (default 30000, head and tail kept)
+  before it is sent to the provider.
+- `loom chat` keeps the conversation across turns; `/clear` resets it.
+- Session IDs are `sess-<UTC timestamp>-<random>`, one `.jsonl` timeline per
+  session (never appended to), and each record carries DevMind's
+  `audit_id` so the local timeline joins DevMind's audit trail.
 - Fail-closed governance: network errors, invalid HTTP responses, malformed
   responses, and unknown policy decisions become `REVIEW`, never `ALLOW`.
 - Readable action traces containing the tool, decision, risk score, outcome,
@@ -224,7 +250,12 @@ on every such session. This opt-out exists for development, not production.
       "datadog_api_key_env": "DATADOG_API_KEY",
       "datadog_app_key_env": "DATADOG_APP_KEY"
     },
-    "runbooks_dir": "runbooks"
+    "runbooks_dir": "runbooks",
+    "max_tool_output_bytes": 30000,
+    "environments": [
+      { "name": "prod-us", "tier": "prod", "kube_contexts": ["prod-eks"], "cloud_profiles": ["prod"], "paths": ["infra/live"] },
+      { "name": "staging", "tier": "staging", "kube_contexts": ["stg-eks"], "paths": ["infra/staging"] }
+    ]
   }
 }
 ```

@@ -14,6 +14,54 @@ todavia no es confiable.
 
 ---
 
+## Direccion (2026-09): Loom como cliente open source de DevMind
+
+Decidido: Loom es **open source (Apache-2.0)** y es el cliente que un
+SRE usa a diario; DevMind (closed-source, motor determinista) es el
+control plane de pago que decide. Shell nativo del usuario (bash/zsh en
+Linux/macOS, pwsh en Windows), ingles por defecto con `es` opcional, y
+primer wedge **plan → policy → apply** para Terraform/OpenTofu y K8s.
+DevMind ya expone REST + MCP con auth por org, asi que buena parte de la
+Fase 3 original ya no esta bloqueada (ver Fase D).
+
+Orden: A (correccion/seguridad, hecha) → B (identidad OSS) → C (wedge
+plan→apply, primer release publico) → D (integracion profunda con
+DevMind) → E (UX nivel Claude Code, intercalada desde C) → F (segundo
+wedge: incidentes y postmortems).
+
+### Fase A — Hecho
+A1 `cloud_read` ya no rechaza `--output`/`--format`/`describe-addresses`;
+A3 resolucion de ambiente declarado (`sre.environments`), unknown = prod
+para cambios de infra; A4 clasificador por argv con suite de evasiones
+permanente; A5 rutas de credenciales bloqueadas y redaccion de toda salida
+de tool; A2 memoria entre turnos en `loom chat` + `/clear`; A6 tope de
+salida con cabeza y cola; A7 session IDs unicos + un `.jsonl` por sesion;
+A8 `audit_id` de DevMind en el timeline. Un commit por ticket, cada uno
+con su test de regresion.
+
+### Fase B — Identidad OSS (siguiente)
+B1 tool `shell` con el shell nativo (alias `powershell`), B2 i18n (en por
+defecto, es opcional), B3 `LOOM.md` como contexto de proyecto, B4 LICENSE
+Apache-2.0, sacar `loom.exe` del historial, SECURITY.md, goreleaser.
+
+### Fase C — plan → policy → apply
+`internal/iac/terraform` (plan -out + show -json, clasificacion por
+recurso incl. replace `-/+` sobre recursos stateful), maquina de estados
+en `.loom/runs/<id>/`, plan JSON a `/evaluate-change` como
+`terraform_plan`, `loom apply` solo del tfplan revisado (verificado por
+sha256) y `terraform apply` crudo por shell rechazado localmente, K8s via
+`diff` + dry-run de servidor, tabla de riesgo por recurso, exit codes
+documentados, GitHub Action que comenta el plan en el PR.
+
+### Fase D — Integracion con DevMind
+REST versionado (`/v1`) como transporte de gobernanza (reinterpreta 3.1:
+las tools MCP de DevMind devuelven texto para agentes, no un contrato
+estructurado); implementacion del break-glass 3.0-(d); aprobacion
+REVIEW fuera de la TTY via review_requests/Slack de DevMind (3.4);
+outcome ejecutado/verificado reportado por `audit_id` (3.3).
+
+---
+
 ## Fase 0 — Hecho (heredado)
 
 Nucleo de ejecucion gobernada: integracion REST con DevMind, evaluacion de
