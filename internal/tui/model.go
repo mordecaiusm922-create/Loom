@@ -229,6 +229,15 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if strings.EqualFold(prompt, "salir") || strings.EqualFold(prompt, "exit") {
 			return m, tea.Quit
 		}
+		if strings.EqualFold(prompt, "/clear") {
+			m.session.ClearHistory()
+			m.plan = nil
+			m.transcript = append(m.transcript, routeLineStyle.Render("-- conversacion reiniciada --"))
+			m.viewport.SetContent(strings.Join(m.transcript, "\n"))
+			m.viewport.GotoBottom()
+			m.input.SetValue("")
+			return m, nil
+		}
 		m.input.SetValue("")
 		return m, m.startRun(prompt)
 	}
@@ -312,7 +321,7 @@ func (m *model) View() string {
 	inputBox := inputBoxStyle.Render(inputLabel + m.input.View())
 
 	view := lipgloss.JoinVertical(lipgloss.Left, header, body, inputBox,
-		statusBarStyle.Render("enter enviar · ctrl+c salir · 'salir' para terminar"))
+		statusBarStyle.Render("enter enviar · /clear reinicia la conversacion · ctrl+c salir"))
 
 	if m.pendingConfirm != nil {
 		return m.renderConfirmOverlay(view)

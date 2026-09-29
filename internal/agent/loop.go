@@ -64,6 +64,12 @@ type Session struct {
 	mcpClients  []*mcp.StdioClient
 	mcpWarnings []error
 	dryRun      bool
+	// history is the conversation carried between RunWithTask calls, so
+	// `loom chat` is a conversation and not a series of unrelated one-shot
+	// prompts. `loom run` makes a single call, so it starts empty.
+	history []providers.Message
+	// resolve is resolveProvider outside tests.
+	resolve func(config.Config, string) (providers.Provider, error)
 }
 
 // NewSession wires a Registry to a governance engine and, best-effort, opens
@@ -82,7 +88,7 @@ func NewSession(cfg config.Config, agentID, sessionID string) (*Session, error) 
 		return nil, fmt.Errorf("la gobernanza es obligatoria; configura governance.enabled=true y engine=devmind, o usa LOOM_UNSAFE_DISABLE_GOVERNANCE=1 para un opt-out local explicito")
 	}
 	registry := tools.NewRegistry(engine, agentID, sessionID, cfg.Sre)
-	session := &Session{cfg: cfg, registry: registry, sessionID: sessionID, onEvent: defaultObserver(sessionID)}
+	session := &Session{cfg: cfg, registry: registry, sessionID: sessionID, onEvent: defaultObserver(sessionID), resolve: resolveProvider}
 	// A misconfigured or unreachable MCP server must never block Loom from
 	// starting: the native tools (powershell, k8s_*, cloud_read,
 	// metrics_query) already cover the SRE surface on their own. Failures
@@ -246,6 +252,10 @@ func (s *Session) ToolNames() []string {
 // SessionID returns the session identifier this Session was created with.
 func (s *Session) SessionID() string { return s.sessionID }
 
+// ClearHistory forgets the conversation so far (`/clear` in loom chat).
+// The persisted .jsonl timeline is not touched.
+func (s *Session) ClearHistory() { s.history = nil }
+
 func resolveProvider(cfg config.Config, name string) (providers.Provider, error) {
 	if custom, ok := cfg.CustomProvider(name); ok {
 		return providers.NewOpenAICompatibleProvider(
@@ -287,7 +297,7 @@ func (s *Session) RunWithTask(ctx context.Context, userPrompt, taskHint string) 
 		s.persistSessionSummary(summary)
 	}()
 	route := s.cfg.RouteForPrompt(userPrompt, taskHint)
-	provider, err := resolveProvider(s.cfg, route.Provider)
+	provider, err := s.resolve(s.cfg, route.Provider)
 	if err != nil {
 		s.emit(Event{Type: EventError, Err: err})
 		return err
@@ -302,13 +312,20 @@ func (s *Session) RunWithTask(ctx context.Context, userPrompt, taskHint string) 
 			toolSpecs = append(toolSpecs, providers.ToolSpec{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema})
 		}
 	}
-	messages := []providers.Message{{Role: "user", Content: userPrompt}}
+	messages := append(append([]providers.Message{}, s.history...), providers.Message{Role: "user", Content: userPrompt})
+	// Whatever happens, the turn is kept in history. messages is always
+	// protocol-valid at a return point (it ends in a user prompt or in tool
+	// results), and an interrupted turn is closed with an assistant note so
+	// the next user prompt keeps user/assistant alternation.
+	fail := func(err error) error {
+		s.emit(Event{Type: EventError, Err: err})
+		s.history = append(messages, providers.Message{Role: "assistant", Content: "[turno interrumpido: " + err.Error() + "]"})
+		return err
+	}
 	for iteration := 0; iteration < maxIterations; iteration++ {
 		response, err := provider.Complete(ctx, providers.CompletionRequest{SystemPrompt: systemPrompt, Messages: messages, Tools: toolSpecs})
 		if err != nil {
-			wrapped := fmt.Errorf("error del provider %s: %w", provider.Name(), err)
-			s.emit(Event{Type: EventError, Err: wrapped})
-			return wrapped
+			return fail(fmt.Errorf("error del provider %s: %w", provider.Name(), err))
 		}
 		inputTokens += response.Usage.InputTokens
 		outputTokens += response.Usage.OutputTokens
@@ -316,13 +333,12 @@ func (s *Session) RunWithTask(ctx context.Context, userPrompt, taskHint string) 
 			s.emit(Event{Type: EventText, Text: response.Text})
 		}
 		if len(response.ToolCalls) == 0 {
+			s.history = append(messages, providers.Message{Role: "assistant", Content: response.Text})
 			s.emit(Event{Type: EventDone})
 			return nil
 		}
 		if !provider.SupportsTooling() {
-			err := fmt.Errorf("el provider %s devolvio tool calls sin soportar tooling", provider.Name())
-			s.emit(Event{Type: EventError, Err: err})
-			return err
+			return fail(fmt.Errorf("el provider %s devolvio tool calls sin soportar tooling", provider.Name()))
 		}
 		messages = append(messages, providers.Message{Role: "assistant", Content: response.Text, ToolCalls: response.ToolCalls})
 		for _, call := range response.ToolCalls {
@@ -339,9 +355,7 @@ func (s *Session) RunWithTask(ctx context.Context, userPrompt, taskHint string) 
 			messages = append(messages, providers.Message{Role: "tool", Content: output, ToolCallID: call.ID, ToolName: call.Name})
 		}
 	}
-	err = fmt.Errorf("se alcanzo el limite de %d iteraciones sin completar la tarea", maxIterations)
-	s.emit(Event{Type: EventError, Err: err})
-	return err
+	return fail(fmt.Errorf("se alcanzo el limite de %d iteraciones sin completar la tarea", maxIterations))
 }
 
 type sessionSummaryRecord struct {
