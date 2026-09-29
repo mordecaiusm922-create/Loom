@@ -196,7 +196,7 @@ func TestIacChangeTypesMatchDevMindEnum(t *testing.T) {
 	cases := map[string]string{
 		"terraform destroy -target=x -auto-approve": "terraform_apply",
 		"terraform apply -auto-approve":             "terraform_apply",
-		"terraform plan":                            "terraform_apply",
+		"terraform plan":                            "terraform_plan",
 		"kubectl delete pod foo":                    "k8s_manifest",
 		"kubectl apply -f foo.yaml":                 "k8s_manifest",
 		"helm uninstall myrelease":                  "helm_release",
