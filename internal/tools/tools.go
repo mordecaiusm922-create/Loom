@@ -209,7 +209,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	out, runErr := tool.Run(ctx, input)
 	// Every tool output -- native, shell, or MCP -- is appended to the
 	// conversation and sent to the model provider. Mask credentials first.
-	out = redact.String(out)
+	out = truncateOutput(redact.String(out), r.sre.MaxToolOutputBytes)
 	if runErr != nil {
 		runErr = fmt.Errorf("%s", redact.String(runErr.Error()))
 	}

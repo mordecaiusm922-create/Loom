@@ -74,7 +74,16 @@ type SreConfig struct {
 	// production?"; the keyword heuristic is only a fallback when nothing
 	// here matches.
 	Environments []EnvironmentConfig `json:"environments,omitempty"`
+
+	// MaxToolOutputBytes caps what one tool call adds to the conversation.
+	// 0 means DefaultMaxToolOutputBytes; a negative value disables the cap.
+	MaxToolOutputBytes int `json:"max_tool_output_bytes,omitempty"`
 }
+
+// DefaultMaxToolOutputBytes keeps a single `kubectl logs` or `terraform
+// plan` from consuming the model's context window (and the session's
+// budget) in one step.
+const DefaultMaxToolOutputBytes = 30_000
 
 // Environment tiers. Anything that cannot be resolved is TierUnknown, which
 // Loom treats as production for infrastructure changes (fail-safe).
