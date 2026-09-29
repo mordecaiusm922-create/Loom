@@ -628,24 +628,40 @@ func k8sLogsTool(sre config.SreConfig) Tool {
 // call, so a mutating attempt never reaches DevMind mislabeled as a read.
 // It is not a substitute for governance -- it only prevents this specific
 // tool from being used to bypass the intent it declares.
-var cloudMutatingVerbs = []string{
-	"create", "delete", "remove", "rm", "terminate", "put", "update",
-	"set", "add", "attach", "detach", "modify", "rotate", "apply",
-	"associate", "disassociate", "revoke", "grant", "run-instances",
-	"start-instances", "stop-instances", "reboot-instances", "deploy",
-	"purge", "drain", "cordon", "scale", "patch", "replace", "upgrade",
-	"uninstall", "install", "destroy", "taint",
+var cloudMutatingVerbs = map[string]bool{
+	"create": true, "delete": true, "remove": true, "rm": true, "terminate": true,
+	"put": true, "update": true, "set": true, "add": true, "attach": true,
+	"detach": true, "modify": true, "rotate": true, "apply": true,
+	"associate": true, "disassociate": true, "revoke": true, "grant": true,
+	"run": true, "start": true, "stop": true, "reboot": true, "restart": true,
+	"deploy": true, "purge": true, "drain": true, "cordon": true, "scale": true,
+	"patch": true, "replace": true, "upgrade": true, "uninstall": true,
+	"install": true, "destroy": true, "taint": true, "cp": true, "mv": true,
+	"sync": true, "copy": true, "invoke": true, "restore": true, "import": true,
+	"enable": true, "disable": true, "reset": true, "resize": true,
+	"cancel": true, "send": true, "publish": true, "release": true,
+	"allocate": true, "register": true, "deregister": true, "authorize": true,
+	"tag": true, "untag": true, "ssh": true, "exec": true, "execute": true,
+	"write": true,
 }
 
+// isCloudMutatingCommand checks subcommand tokens only. Flags (anything
+// starting with "-") are skipped, and each token is split on "-" and matched
+// segment by segment against cloudMutatingVerbs. A substring match over
+// every argument (the previous implementation) rejected the most common read
+// commands in the field: "--output" contains "put", "--format" contains
+// "rm", "describe-addresses" contains "add", "list-attached-role-policies"
+// contains "attach". Segment matching still catches hyphenated compounds
+// such as "terminate-instances", "delete-db-instance" and
+// "batch-delete-image". A flag value that happens to be a verb (e.g. a
+// bucket named "delete-me") is still rejected -- that errs toward refusal.
 func isCloudMutatingCommand(args []string) bool {
 	for _, arg := range args {
-		lower := strings.ToLower(arg)
-		for _, verb := range cloudMutatingVerbs {
-			// Substring match, not exact equality: cloud CLI subcommands are
-			// routinely hyphenated compounds of the verb, e.g.
-			// "terminate-instances", "delete-db-instance", "put-secret-value".
-			// An exact-equality check would silently miss all of those.
-			if strings.Contains(lower, verb) {
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		for _, segment := range strings.Split(strings.ToLower(arg), "-") {
+			if cloudMutatingVerbs[segment] {
 				return true
 			}
 		}

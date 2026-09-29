@@ -372,6 +372,47 @@ func TestCloudReadAllowsDescribeVerb(t *testing.T) {
 	}
 }
 
+// TestCloudMutatingCheckAllowsCommonReadCommands is the regression test for
+// the substring matcher that rejected everyday reads: "--output" contains
+// "put", "--format" contains "rm", "describe-addresses" contains "add",
+// "list-attached-role-policies" contains "attach".
+func TestCloudMutatingCheckAllowsCommonReadCommands(t *testing.T) {
+	reads := [][]string{
+		{"ec2", "describe-instances", "--output", "json"},
+		{"compute", "instances", "list", "--format=json"},
+		{"ec2", "describe-addresses"},
+		{"iam", "list-attached-role-policies", "--role-name", "ci"},
+		{"sts", "get-caller-identity"},
+		{"logs", "filter-log-events", "--log-group-name", "/aws/eks/prod/cluster"},
+		{"vm", "list", "--output", "table"},
+	}
+	for _, args := range reads {
+		if isCloudMutatingCommand(args) {
+			t.Fatalf("%v rejected as mutating, want allowed", args)
+		}
+	}
+}
+
+func TestCloudMutatingCheckStillRejectsWrites(t *testing.T) {
+	writes := [][]string{
+		{"ec2", "terminate-instances", "--instance-ids", "i-1"},
+		{"secretsmanager", "put-secret-value", "--secret-id", "x"},
+		{"rds", "delete-db-instance", "--db-instance-identifier", "prod"},
+		{"ecr", "batch-delete-image", "--repository-name", "app"},
+		{"ec2", "run-instances", "--image-id", "ami-1"},
+		{"s3", "rm", "s3://bucket/key"},
+		{"s3", "cp", "local.txt", "s3://bucket/key"},
+		{"compute", "instances", "delete", "web-1"},
+		{"projects", "set-iam-policy", "p", "policy.json"},
+		{"EC2", "Terminate-Instances"},
+	}
+	for _, args := range writes {
+		if !isCloudMutatingCommand(args) {
+			t.Fatalf("%v allowed, want rejected as mutating", args)
+		}
+	}
+}
+
 func TestReviewRequiresConfirmation(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Review}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
