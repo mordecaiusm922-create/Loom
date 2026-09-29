@@ -128,7 +128,7 @@ func cmdRun(args []string) {
 	if agentID == "" {
 		agentID = "loom-sre"
 	}
-	sessionID := fmt.Sprintf("sess-%d", os.Getpid())
+	sessionID := agent.NewSessionID()
 	session, err := agent.NewSession(cfg, agentID, sessionID)
 	if err != nil {
 		fatal("iniciando sesion: %v", err)
@@ -185,7 +185,7 @@ func cmdChat(args []string) {
 	if agentID == "" {
 		agentID = "loom-sre"
 	}
-	sessionID := fmt.Sprintf("sess-%d", os.Getpid())
+	sessionID := agent.NewSessionID()
 	if err := tui.Run(cfg, agentID, sessionID, dryRun); err != nil {
 		fatal("%v", err)
 	}

@@ -118,7 +118,10 @@ func openAuditFile(sessionID string) *os.File {
 		return nil
 	}
 	path := fmt.Sprintf("%s/%s.jsonl", dir, sessionID)
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	// O_EXCL: a timeline belongs to exactly one session. Appending to an
+	// existing file (the old behavior with PID-based IDs) silently merged
+	// unrelated incidents into one postmortem record.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[loom] WARNING: no se pudo abrir %s: %v (esta sesion no quedara persistida)\n", path, err)
 		return nil
