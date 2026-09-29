@@ -14,6 +14,7 @@ import (
 
 	"loom/internal/config"
 	"loom/internal/governance"
+	"loom/internal/redact"
 )
 
 type Tool struct {
@@ -206,6 +207,12 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	}
 
 	out, runErr := tool.Run(ctx, input)
+	// Every tool output -- native, shell, or MCP -- is appended to the
+	// conversation and sent to the model provider. Mask credentials first.
+	out = redact.String(out)
+	if runErr != nil {
+		runErr = fmt.Errorf("%s", redact.String(runErr.Error()))
+	}
 	event.Executed = true
 	if runErr != nil {
 		event.Outcome = "error"
@@ -317,6 +324,9 @@ func readFileTool() Tool {
 			if path == "" {
 				return "", fmt.Errorf("falta 'path'")
 			}
+			if err := checkSensitivePath(path); err != nil {
+				return "", err
+			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return "", err
@@ -353,6 +363,9 @@ func writeFileTool() Tool {
 			content, _ := input["content"].(string)
 			if path == "" {
 				return "", fmt.Errorf("falta 'path'")
+			}
+			if err := checkSensitivePath(path); err != nil {
+				return "", err
 			}
 			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 				return "", err
