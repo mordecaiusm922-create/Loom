@@ -9,6 +9,13 @@ var (
 	colorRed    = lipgloss.Color("203")
 	colorGray   = lipgloss.Color("240")
 	colorWhite  = lipgloss.Color("255")
+	colorOwl    = lipgloss.Color("#A78BFA")
+	colorAmber  = lipgloss.Color("#FBBF24")
+	colorCyan   = lipgloss.Color("#22D3EE")
+
+	envProdStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(lipgloss.Color("#DC2626")).Padding(0, 1)
+	envOtherStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0F172A")).Background(lipgloss.Color("#22D3EE")).Padding(0, 1)
+	envUnkStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0F172A")).Background(lipgloss.Color("#FBBF24")).Padding(0, 1)
 
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorPurple)
 
@@ -43,6 +50,11 @@ var (
 			Bold(true)
 
 	statusBarStyle = lipgloss.NewStyle().Foreground(colorGray)
+
+	promptMarkStyle = lipgloss.NewStyle().Foreground(colorCyan).Bold(true)
+	bulletStyle     = lipgloss.NewStyle().Foreground(colorOwl)
+	toolNameStyle   = lipgloss.NewStyle().Foreground(colorWhite).Bold(true)
+	sayStyle        = lipgloss.NewStyle().Foreground(colorGray).Italic(true)
 )
 
 func decisionStyle(decision string) lipgloss.Style {

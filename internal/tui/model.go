@@ -20,6 +20,7 @@ import (
 	"loom/internal/agent"
 	"loom/internal/config"
 	"loom/internal/governance"
+	"loom/internal/tools"
 )
 
 // confirmRequest crosses from the agent's background goroutine into the
@@ -70,6 +71,39 @@ type model struct {
 	lastRisk     float64
 
 	transcript []string
+
+	// mascot state
+	mood      mood
+	moodTicks int // spinner ticks left before a transient mood fades to idle
+	ticks     int
+	envName   string
+	envTier   string
+}
+
+// moodHold is how long a transient mood (happy, error) stays before the
+// owl goes back to idle: ~3s at the spinner's 10 ticks per second.
+const moodHold = 30
+
+func (m *model) setMood(next mood, hold int) {
+	m.mood, m.moodTicks = next, hold
+}
+
+// tick advances the owl: transient moods fade, and an idle owl blinks
+// every few seconds so the screen feels alive without being noisy.
+func (m *model) tick() {
+	m.ticks++
+	if m.moodTicks > 0 {
+		m.moodTicks--
+		if m.moodTicks == 0 {
+			m.mood = moodIdle
+		}
+	}
+	switch {
+	case m.mood == moodIdle && m.ticks%45 == 0:
+		m.mood = moodBlink
+	case m.mood == moodBlink:
+		m.mood = moodIdle
+	}
 }
 
 // Run starts the interactive TUI. It blocks until the person quits.
@@ -88,6 +122,12 @@ func Run(cfg config.Config, agentID, sessionID string, dryRun bool) error {
 		eventCh:   make(chan agent.Event, 16),
 		confirmCh: make(chan confirmRequest, 1),
 	}
+	// Environment badge: resolved from the configured kube context exactly
+	// the way governance resolves it for every native k8s_* call.
+	if cfg.Sre.KubeContext != "" {
+		env := tools.ResolveEnvironment("k8s_get", map[string]any{}, cfg.Sre)
+		m.envName, m.envTier = cfg.Sre.KubeContext, env.Tier
+	}
 
 	session.SetEventObserver(func(e agent.Event) { m.eventCh <- e })
 	session.SetConfirmation(func(d governance.Decision, r *governance.EvaluateResponse) bool {
@@ -97,14 +137,15 @@ func Run(cfg config.Config, agentID, sessionID string, dryRun bool) error {
 	})
 
 	ti := textinput.New()
-	ti.Placeholder = `Pidele algo a Loom... ("salir" o Ctrl+C para terminar)`
+	ti.Placeholder = "que investigamos?"
+	ti.Prompt = ""
 	ti.Focus()
 	ti.CharLimit = 2000
 	m.input = ti
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(colorPurple)
+	sp.Style = lipgloss.NewStyle().Foreground(colorCyan)
 	m.spinner = sp
 
 	m.viewport = viewport.New(80, 20)
@@ -170,15 +211,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case confirmMsg:
 		req := confirmRequest(msg)
 		m.pendingConfirm = &req
+		m.setMood(moodAlert, 0)
 		return m, nil // re-issued only after the modal is answered, see handleKey
 
 	case runDoneMsg:
 		m.running = false
 		m.lastErr = msg.err
 		if msg.err != nil {
-			m.transcript = append(m.transcript, errorLineStyle.Render("error: "+msg.err.Error()))
+			m.setMood(moodError, moodHold*2)
+			m.transcript = append(m.transcript, errorLineStyle.Render("  x "+msg.err.Error()))
 			m.viewport.SetContent(strings.Join(m.transcript, "\n"))
 			m.viewport.GotoBottom()
+		} else {
+			m.setMood(moodHappy, moodHold)
 		}
 		m.input.Focus()
 		return m, nil
@@ -186,6 +231,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		m.tick()
 		return m, cmd
 
 	case eventClosedMsg, confirmClosedMsg:
@@ -206,10 +252,12 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "y":
 			m.pendingConfirm.reply <- true
 			m.pendingConfirm = nil
+			m.setMood(moodThinking, 0)
 			return m, waitForConfirm(m.confirmCh)
 		case "n", "enter", "esc":
 			m.pendingConfirm.reply <- false
 			m.pendingConfirm = nil
+			m.setMood(moodThinking, 0)
 			return m, waitForConfirm(m.confirmCh)
 		}
 		return m, nil
@@ -249,7 +297,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) startRun(prompt string) tea.Cmd {
 	m.running = true
-	m.transcript = append(m.transcript, userLineStyle.Render("> "+prompt))
+	m.setMood(moodThinking, 0)
+	if len(m.transcript) > 0 {
+		m.transcript = append(m.transcript, "")
+	}
+	m.transcript = append(m.transcript, promptMarkStyle.Render("› ")+userLineStyle.Render(prompt))
 	m.viewport.SetContent(strings.Join(m.transcript, "\n"))
 	m.viewport.GotoBottom()
 	m.doneCh = make(chan error, 1)
@@ -263,17 +315,29 @@ func (m *model) applyEvent(e agent.Event) {
 	switch e.Type {
 	case agent.EventRoute:
 		m.lastTask, m.lastProvider, m.lastReason = e.Task, e.Provider, e.Reason
-		m.transcript = append(m.transcript, routeLineStyle.Render(fmt.Sprintf("route task=%s provider=%s", e.Task, e.Provider)))
+		m.transcript = append(m.transcript, routeLineStyle.Render(fmt.Sprintf("  %s · %s", e.Task, e.Provider)))
 	case agent.EventText:
-		m.transcript = append(m.transcript, textLineStyle.Render(e.Text))
+		m.transcript = append(m.transcript, bulletStyle.Render("● ")+textLineStyle.Render(e.Text))
 	case agent.EventPlan:
 		m.plan = e.Steps
+	case agent.EventToolStart:
+		if m.pendingConfirm == nil {
+			m.setMood(moodThinking, 0)
+		}
 	case agent.EventToolResult:
 		m.toolCalls++
 		m.lastDecision = string(e.Decision)
 		m.lastRisk = e.RiskScore
-		line := fmt.Sprintf("[%s] %s engine=%s risk=%.1f", e.Decision, e.Tool, e.Engine, e.RiskScore)
-		m.transcript = append(m.transcript, decisionStyle(string(e.Decision)).Render(line))
+		if e.Decision == governance.Block {
+			m.setMood(moodBlocked, 0)
+		}
+		decision := string(e.Decision)
+		if decision == "" {
+			decision = e.Engine // dry-run: no governance decision was requested
+		}
+		line := "  │ " + decisionStyle(string(e.Decision)).Render(fmt.Sprintf("%-8s", decision)) +
+			toolNameStyle.Render(e.Tool) + routeLineStyle.Render(fmt.Sprintf("  risk %.1f · %s", e.RiskScore, orDash(e.Outcome)))
+		m.transcript = append(m.transcript, line)
 	}
 }
 
@@ -299,12 +363,22 @@ func (m *model) View() string {
 		return "iniciando loom chat..."
 	}
 
-	header := headerStyle.Render("loom chat") + "  " + statusBarStyle.Render("sesion "+m.sessionID)
-	if m.running {
-		header += "  " + m.spinner.View() + " pensando..."
+	header := " " + m.mood.face() + " " + headerStyle.Render("loom")
+	if badge := m.envBadge(); badge != "" {
+		header += "  " + badge
 	}
+	status := m.mood.say()
+	if m.running {
+		status = m.spinner.View() + " " + status
+	}
+	header += "  " + sayStyle.Render(status)
 
-	transcriptBox := transcriptBoxStyle.Render(m.viewport.View())
+	content := m.viewport.View()
+	if len(m.transcript) == 0 {
+		content = lipgloss.Place(m.viewport.Width, m.viewport.Height, lipgloss.Center, lipgloss.Center,
+			welcome(m.mood, m.viewport.Width, m.sessionID, m.envName))
+	}
+	transcriptBox := transcriptBoxStyle.Render(content)
 	sidebar := m.renderSidebar()
 
 	var body string
@@ -314,14 +388,14 @@ func (m *model) View() string {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, transcriptBox, sidebar)
 	}
 
-	inputLabel := "> "
+	inputLabel := promptMarkStyle.Render("› ")
 	if m.running {
 		inputLabel = "  "
 	}
-	inputBox := inputBoxStyle.Render(inputLabel + m.input.View())
+	inputBox := inputBoxStyle.Width(m.width - 2).Render(inputLabel + m.input.View())
 
 	view := lipgloss.JoinVertical(lipgloss.Left, header, body, inputBox,
-		statusBarStyle.Render("enter enviar · /clear reinicia la conversacion · ctrl+c salir"))
+		statusBarStyle.Render(" enter enviar · /clear reinicia · ctrl+c salir · sesion "+m.sessionID))
 
 	if m.pendingConfirm != nil {
 		return m.renderConfirmOverlay(view)
@@ -366,17 +440,36 @@ func (m *model) renderSidebar() string {
 func (m *model) renderConfirmOverlay(base string) string {
 	req := m.pendingConfirm
 	var b strings.Builder
-	fmt.Fprintf(&b, "DevMind: %s\n\n", decisionStyle(string(req.decision)).Render(string(req.decision)))
-	fmt.Fprintf(&b, "risk_score=%.1f\n", req.response.RiskScore)
+	fmt.Fprintf(&b, "DevMind: %s   ", decisionStyle(string(req.decision)).Render(string(req.decision)))
+	b.WriteString(routeLineStyle.Render(fmt.Sprintf("risk %.1f", req.response.RiskScore)))
 	if req.response.AuditID != "" {
-		fmt.Fprintf(&b, "audit_id=%s\n", req.response.AuditID)
+		b.WriteString(routeLineStyle.Render(" · audit " + req.response.AuditID))
 	}
+	b.WriteString("\n\n")
 	for _, why := range req.response.Why {
-		fmt.Fprintf(&b, "- %s\n", why)
+		fmt.Fprintf(&b, "• %s\n", why)
 	}
-	b.WriteString("\ncontinuar de todos modos? [y/n]")
-	overlay := modalStyle.Render(b.String())
+	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render("continuar de todos modos?") + "  " +
+		decisionStyle("ALLOW").Render("[y] si") + "  " + decisionStyle("BLOCK").Render("[n] no"))
+	card := lipgloss.JoinHorizontal(lipgloss.Top, moodAlert.owl(), "   ", b.String())
+	overlay := modalStyle.Render(card)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, overlay)
+}
+
+// envBadge is the always-visible environment tag: PROD in red, so nobody
+// forgets which cluster the agent is pointed at.
+func (m *model) envBadge() string {
+	if m.envName == "" {
+		return ""
+	}
+	switch m.envTier {
+	case config.TierProd:
+		return envProdStyle.Render("PROD " + m.envName)
+	case config.TierUnknown:
+		return envUnkStyle.Render("? " + m.envName)
+	default:
+		return envOtherStyle.Render(strings.ToUpper(m.envTier) + " " + m.envName)
+	}
 }
 
 func orDash(s string) string {
