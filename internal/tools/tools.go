@@ -41,6 +41,9 @@ type AuditEvent struct {
 	// Environment is the resolved tier (prod/staging/dev/unknown) the call
 	// targeted -- see ResolveEnvironment.
 	Environment string `json:",omitempty"`
+	// AuditID links this local record to DevMind's audit record for the
+	// same decision.
+	AuditID string `json:",omitempty"`
 }
 
 type Registry struct {
@@ -177,7 +180,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	if err != nil {
 		return "", fmt.Errorf("error consultando gobernanza: %w", err)
 	}
-	event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: engineUsed, Decision: decision.DecisionValue, RiskScore: decision.RiskScore, Environment: env.Tier}
+	event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: engineUsed, Decision: decision.DecisionValue, RiskScore: decision.RiskScore, Environment: env.Tier, AuditID: decision.AuditID}
 	switch decision.DecisionValue {
 	case governance.Block:
 		event.Outcome = "blocked"
@@ -231,6 +234,9 @@ func (r *Registry) emit(event AuditEvent) {
 
 func confirmInTerminal(decision governance.Decision, response *governance.EvaluateResponse) bool {
 	fmt.Fprintf(os.Stderr, "\n[loom] DevMind: %s (risk_score=%.1f)\n", decision, response.RiskScore)
+	if response.AuditID != "" {
+		fmt.Fprintf(os.Stderr, "  audit_id: %s\n", response.AuditID)
+	}
 	for _, why := range response.Why {
 		fmt.Fprintf(os.Stderr, "  - %s\n", why)
 	}

@@ -55,6 +55,21 @@ func TestEvaluateChangeHitsEvaluateChangeEndpoint(t *testing.T) {
 	}
 }
 
+func TestDecisionCarriesDevMindAuditID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"decision":"REVIEW","risk_score":6.5,"why":["prod"],"audit_id":"act-7f3a9c"}`))
+	}))
+	defer server.Close()
+	decision, err := NewDevMindEngine(server.URL, "").EvaluateAction(context.Background(), "agent", "k8s_get", "execute", "pods", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.AuditID != "act-7f3a9c" {
+		t.Fatalf("AuditID = %q, want act-7f3a9c", decision.AuditID)
+	}
+}
+
 func TestEvaluateChangeFailsClosedOnTransportError(t *testing.T) {
 	engine := NewDevMindEngine("http://127.0.0.1:0", "") // unreachable
 	decision, err := engine.EvaluateChange(context.Background(), "agent", "terraform_destroy", "infrastructure", "x", true, "")

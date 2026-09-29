@@ -368,6 +368,9 @@ func (m *model) renderConfirmOverlay(base string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "DevMind: %s\n\n", decisionStyle(string(req.decision)).Render(string(req.decision)))
 	fmt.Fprintf(&b, "risk_score=%.1f\n", req.response.RiskScore)
+	if req.response.AuditID != "" {
+		fmt.Fprintf(&b, "audit_id=%s\n", req.response.AuditID)
+	}
 	for _, why := range req.response.Why {
 		fmt.Fprintf(&b, "- %s\n", why)
 	}

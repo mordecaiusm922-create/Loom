@@ -414,6 +414,19 @@ func TestCloudMutatingCheckStillRejectsWrites(t *testing.T) {
 	}
 }
 
+// The local timeline must carry DevMind's audit_id so a postmortem can
+// join "what Loom did" with "what DevMind decided and why".
+func TestAuditEventCarriesDevMindAuditID(t *testing.T) {
+	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Block, AuditID: "act-42"}}
+	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
+	var events []AuditEvent
+	registry.SetObserver(func(e AuditEvent) { events = append(events, e) })
+	_, _ = registry.Execute(context.Background(), "k8s_get", map[string]any{"resource": "pods"}, false)
+	if len(events) != 1 || events[0].AuditID != "act-42" {
+		t.Fatalf("events = %+v, want one event with AuditID act-42", events)
+	}
+}
+
 func TestReviewRequiresConfirmation(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Review}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})

@@ -28,6 +28,11 @@ type EvaluateResponse struct {
 	RiskScore          float64  `json:"risk_score"`
 	Why                []string `json:"why"`
 	EscalationRequired bool     `json:"escalation_required"`
+	// AuditID is DevMind's identifier for the decision record it stored.
+	// Loom persists it next to the local outcome so a postmortem can join
+	// the local timeline with DevMind's audit trail. Empty on a local
+	// fail-closed decision (DevMind never saw the request).
+	AuditID string `json:"audit_id,omitempty"`
 }
 
 // Engine is the governance contract. EvaluateAction covers generic tool
