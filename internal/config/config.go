@@ -67,6 +67,35 @@ type SreConfig struct {
 	// RunbooksDir is where `loom run --runbook <name>` looks for
 	// <name>.json. Defaults to "./runbooks" when empty.
 	RunbooksDir string `json:"runbooks_dir,omitempty"`
+
+	// Environments maps the identifiers an operator actually uses (kube
+	// contexts, cloud profiles, Terraform workspaces, repo paths) to an
+	// environment tier. It is the declared source of truth for "is this
+	// production?"; the keyword heuristic is only a fallback when nothing
+	// here matches.
+	Environments []EnvironmentConfig `json:"environments,omitempty"`
+}
+
+// Environment tiers. Anything that cannot be resolved is TierUnknown, which
+// Loom treats as production for infrastructure changes (fail-safe).
+const (
+	TierProd    = "prod"
+	TierStaging = "staging"
+	TierDev     = "dev"
+	TierUnknown = "unknown"
+)
+
+// EnvironmentConfig declares one environment and every identifier that
+// points at it. A tool call whose context/profile/workspace token matches
+// one of these exactly (or whose path starts with one of Paths) resolves to
+// this environment.
+type EnvironmentConfig struct {
+	Name                string   `json:"name"`
+	Tier                string   `json:"tier"` // prod | staging | dev
+	KubeContexts        []string `json:"kube_contexts,omitempty"`
+	CloudProfiles       []string `json:"cloud_profiles,omitempty"`
+	TerraformWorkspaces []string `json:"terraform_workspaces,omitempty"`
+	Paths               []string `json:"paths,omitempty"`
 }
 
 // CustomProviderConfig defines any provider that implements the OpenAI Chat

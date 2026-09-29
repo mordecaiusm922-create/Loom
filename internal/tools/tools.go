@@ -37,6 +37,9 @@ type AuditEvent struct {
 	RiskScore float64
 	Executed  bool
 	Outcome   string
+	// Environment is the resolved tier (prod/staging/dev/unknown) the call
+	// targeted -- see ResolveEnvironment.
+	Environment string `json:",omitempty"`
 }
 
 type Registry struct {
@@ -48,10 +51,11 @@ type Registry struct {
 	onEvent        func(AuditEvent)
 	dryRun         bool
 	nonInteractive bool
+	sre            config.SreConfig
 }
 
 func NewRegistry(gov governance.Engine, agentID, sessionID string, sre config.SreConfig) *Registry {
-	r := &Registry{tools: map[string]Tool{}, gov: gov, agentID: agentID, sessionID: sessionID}
+	r := &Registry{tools: map[string]Tool{}, gov: gov, agentID: agentID, sessionID: sessionID, sre: sre}
 	r.confirm = confirmInTerminal
 	r.register(powershellTool())
 	r.register(readFileTool())
@@ -204,24 +208,37 @@ func isDestructiveCommand(command string) bool {
 // quota against) DevMind being reachable. Read-only tools still run for
 // real in dry-run mode -- otherwise the model couldn't investigate at all
 // while rehearsing.
-func (r *Registry) Execute(ctx context.Context, name string, input map[string]any, affectsProduction bool) (string, error) {
+//
+// declaredProduction is an explicit operator/caller assertion that the call
+// targets production; it can only raise the resolved environment, never
+// lower it.
+func (r *Registry) Execute(ctx context.Context, name string, input map[string]any, declaredProduction bool) (string, error) {
 	tool, ok := r.tools[name]
 	if !ok {
 		return "", fmt.Errorf("herramienta desconocida: %s", name)
 	}
 
+	env := ResolveEnvironment(name, input, r.sre)
 	if r.dryRun && tool.IsMutating != nil && tool.IsMutating(input) {
-		event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: "dry-run", Outcome: "dry_run_skipped"}
+		event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: "dry-run", Outcome: "dry_run_skipped", Environment: env.Tier}
 		r.emit(event)
 		return fmt.Sprintf("[dry-run] %s no se ejecuto (accion mutante); gobernanza no fue consultada", name), nil
 	}
 
+	affectsProduction := declaredProduction || env.Tier == config.TierProd
 	var decision *governance.EvaluateResponse
 	var err error
 	engineUsed := "policy"
 	if name == "powershell" {
 		if command, _ := input["command"].(string); command != "" {
 			if changeType, isChange := iacChangeType(command); isChange {
+				// Fail-safe: an infrastructure change whose target cannot be
+				// resolved is evaluated as production. Reads are not, so an
+				// unmapped cluster does not turn every `kubectl get` into a
+				// REVIEW.
+				if env.Tier == config.TierUnknown {
+					affectsProduction = true
+				}
 				blastRadius := ""
 				if affectsProduction && isDestructiveCommand(command) {
 					blastRadius = "org"
@@ -237,7 +254,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	if err != nil {
 		return "", fmt.Errorf("error consultando gobernanza: %w", err)
 	}
-	event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: engineUsed, Decision: decision.DecisionValue, RiskScore: decision.RiskScore}
+	event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: engineUsed, Decision: decision.DecisionValue, RiskScore: decision.RiskScore, Environment: env.Tier}
 	switch decision.DecisionValue {
 	case governance.Block:
 		event.Outcome = "blocked"

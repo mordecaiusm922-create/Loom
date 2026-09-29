@@ -19,8 +19,9 @@ type fakeEngine struct {
 	lastAffectsProd bool
 }
 
-func (f *fakeEngine) EvaluateAction(context.Context, string, string, string, string, bool) (*governance.EvaluateResponse, error) {
+func (f *fakeEngine) EvaluateAction(_ context.Context, _, _, _, _ string, affectsProduction bool) (*governance.EvaluateResponse, error) {
 	f.actionCalls++
+	f.lastAffectsProd = affectsProduction
 	return f.response, nil
 }
 

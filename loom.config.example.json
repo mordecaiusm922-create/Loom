@@ -60,6 +60,23 @@
       "datadog_api_key_env": "DATADOG_API_KEY",
       "datadog_app_key_env": "DATADOG_APP_KEY"
     },
-    "runbooks_dir": "runbooks"
+    "runbooks_dir": "runbooks",
+    "environments": [
+      {
+        "name": "prod-us",
+        "tier": "prod",
+        "kube_contexts": ["eks-main"],
+        "cloud_profiles": ["acme-main"],
+        "terraform_workspaces": ["production"],
+        "paths": ["infra/live"]
+      },
+      {
+        "name": "staging",
+        "tier": "staging",
+        "kube_contexts": ["eks-stg"],
+        "cloud_profiles": ["acme-stg"],
+        "paths": ["infra/staging"]
+      }
+    ]
   }
 }

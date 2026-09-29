@@ -327,8 +327,10 @@ func (s *Session) RunWithTask(ctx context.Context, userPrompt, taskHint string) 
 		messages = append(messages, providers.Message{Role: "assistant", Content: response.Text, ToolCalls: response.ToolCalls})
 		for _, call := range response.ToolCalls {
 			s.emit(Event{Type: EventToolStart, Tool: call.Name})
-			affectsProduction := looksLikeProduction(call.Input)
-			output, toolErr := s.registry.Execute(ctx, call.Name, call.Input, affectsProduction)
+			// The environment is resolved inside the registry from declared
+			// sre.environments and the context/profile the native tools
+			// inject -- never from a substring of the model's input.
+			output, toolErr := s.registry.Execute(ctx, call.Name, call.Input, false)
 			if toolErr != nil {
 				output = "ERROR: " + toolErr.Error()
 			} else if call.Name == "update_plan" {
@@ -410,16 +412,4 @@ func parsePlanSteps(input map[string]any) []PlanStep {
 		steps = append(steps, PlanStep{Title: title, Status: status})
 	}
 	return steps
-}
-
-func looksLikeProduction(input map[string]any) bool {
-	for _, value := range input {
-		if text, ok := value.(string); ok {
-			lower := strings.ToLower(text)
-			if strings.Contains(lower, "production") || strings.Contains(lower, "produccion") || strings.Contains(lower, "prod") {
-				return true
-			}
-		}
-	}
-	return false
 }
