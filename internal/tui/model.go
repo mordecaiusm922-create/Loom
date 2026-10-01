@@ -8,7 +8,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -75,6 +74,7 @@ type model struct {
 	// mascot state
 	mood      mood
 	moodTicks int // spinner ticks left before a transient mood fades to idle
+	moodSince int // tick at which the current mood began; drives its animation
 	ticks     int
 	envName   string
 	envTier   string
@@ -82,29 +82,31 @@ type model struct {
 
 // moodHold is how long a transient mood (happy, error) stays before the
 // owl goes back to idle: ~3s at the spinner's 10 ticks per second.
-const moodHold = 30
+const moodHold = 3 * ticksPerS
 
+// setMood changes the owl's mood. hold > 0 makes it transient: it fades
+// back to idle after hold ticks. Setting the same mood again does not
+// restart its animation, so a stream of tool events keeps a smooth loop.
 func (m *model) setMood(next mood, hold int) {
+	if next != m.mood {
+		m.moodSince = m.ticks
+	}
 	m.mood, m.moodTicks = next, hold
 }
 
-// tick advances the owl: transient moods fade, and an idle owl blinks
-// every few seconds so the screen feels alive without being noisy.
+// tick advances the animation clock and fades transient moods.
 func (m *model) tick() {
 	m.ticks++
 	if m.moodTicks > 0 {
 		m.moodTicks--
 		if m.moodTicks == 0 {
-			m.mood = moodIdle
+			m.setMood(moodIdle, 0)
 		}
 	}
-	switch {
-	case m.mood == moodIdle && m.ticks%45 == 0:
-		m.mood = moodBlink
-	case m.mood == moodBlink:
-		m.mood = moodIdle
-	}
 }
+
+// animT is how many ticks the current mood has been showing.
+func (m *model) animT() int { return m.ticks - m.moodSince }
 
 // Run starts the interactive TUI. It blocks until the person quits.
 func Run(cfg config.Config, agentID, sessionID string, dryRun bool) error {
@@ -363,7 +365,11 @@ func (m *model) View() string {
 		return "iniciando loom chat..."
 	}
 
-	header := " " + m.mood.face() + " " + headerStyle.Render("loom")
+	header := " " + headerStyle.Render("loom")
+	if m.width < 90 {
+		// No sidebar, so no pixel owl: the one-line face carries the mood.
+		header = " " + m.mood.face() + header
+	}
 	if badge := m.envBadge(); badge != "" {
 		header += "  " + badge
 	}
@@ -376,7 +382,7 @@ func (m *model) View() string {
 	content := m.viewport.View()
 	if len(m.transcript) == 0 {
 		content = lipgloss.Place(m.viewport.Width, m.viewport.Height, lipgloss.Center, lipgloss.Center,
-			welcome(m.mood, m.viewport.Width, m.sessionID, m.envName))
+			welcome(m.mood, m.animT(), m.viewport.Width, m.sessionID, m.envName))
 	}
 	transcriptBox := transcriptBoxStyle.Render(content)
 	sidebar := m.renderSidebar()
@@ -405,6 +411,12 @@ func (m *model) View() string {
 
 func (m *model) renderSidebar() string {
 	var b strings.Builder
+	// The welcome screen already shows the big owl; once the conversation
+	// starts, it moves here and keeps reacting to every decision.
+	if len(m.transcript) > 0 {
+		b.WriteString(lipgloss.PlaceHorizontal(26, lipgloss.Center, m.mood.owl(m.animT())) + "\n")
+		b.WriteString(lipgloss.PlaceHorizontal(26, lipgloss.Center, sayStyle.Render(m.mood.say())) + "\n\n")
+	}
 	b.WriteString(headerStyle.Render("SESION") + "\n")
 	fmt.Fprintf(&b, "tarea: %s\n", orDash(m.lastTask))
 	fmt.Fprintf(&b, "provider: %s\n", orDash(m.lastProvider))
@@ -427,13 +439,7 @@ func (m *model) renderSidebar() string {
 		}
 		fmt.Fprintf(&b, "%s %d. %s\n", style.Render(mark), i+1, step.Title)
 	}
-	b.WriteString("\n")
-	b.WriteString(headerStyle.Render("HERRAMIENTAS") + "\n")
-	names := m.session.ToolNames()
-	sort.Strings(names)
-	for _, name := range names {
-		b.WriteString("- " + name + "\n")
-	}
+	b.WriteString("\n" + statusBarStyle.Render(fmt.Sprintf("%d herramientas gobernadas", len(m.session.ToolNames()))))
 	return sidebarBoxStyle.Width(28).Render(b.String())
 }
 
@@ -451,7 +457,8 @@ func (m *model) renderConfirmOverlay(base string) string {
 	}
 	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render("continuar de todos modos?") + "  " +
 		decisionStyle("ALLOW").Render("[y] si") + "  " + decisionStyle("BLOCK").Render("[n] no"))
-	card := lipgloss.JoinHorizontal(lipgloss.Top, moodAlert.owl(), "   ", b.String())
+	owl := m.mood.owl(m.animT()) // the alert mood is set when the modal opens
+	card := lipgloss.JoinHorizontal(lipgloss.Center, owl, "   ", b.String())
 	overlay := modalStyle.Render(card)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, overlay)
 }
