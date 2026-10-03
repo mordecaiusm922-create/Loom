@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"loom/internal/config"
-	"loom/internal/governance"
-	"loom/internal/redact"
+	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/loom/internal/redact"
 )
 
 func TestSensitivePathsAreRefused(t *testing.T) {

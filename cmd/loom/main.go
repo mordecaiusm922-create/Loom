@@ -9,10 +9,10 @@ import (
 	"runtime"
 	"strings"
 
-	"loom/internal/agent"
-	"loom/internal/config"
-	"loom/internal/runbook"
-	"loom/internal/tui"
+	"github.com/mordecaiusm922-create/loom/internal/agent"
+	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/runbook"
+	"github.com/mordecaiusm922-create/loom/internal/tui"
 )
 
 const usage = `Loom -- runtime gobernado para agentes de SRE / Platform Engineering.

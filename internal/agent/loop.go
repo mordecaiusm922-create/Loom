@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"loom/internal/config"
-	"loom/internal/governance"
-	"loom/internal/mcp"
-	"loom/internal/providers"
-	"loom/internal/tools"
+	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/loom/internal/mcp"
+	"github.com/mordecaiusm922-create/loom/internal/providers"
+	"github.com/mordecaiusm922-create/loom/internal/tools"
 )
 
 // systemPromptTemplate has two %[1]s slots for the configured shell tool

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/config"
 )
 
 // truncateOutput keeps the head and the tail of an oversized tool output.

@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"loom/internal/governance"
+	"github.com/mordecaiusm922-create/loom/internal/governance"
 )
 
 // EventType identifies what kind of thing happened during a run. Both the

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"loom/internal/config"
-	"loom/internal/providers"
+	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/providers"
 )
 
 func TestNewSessionDegradesPartiallyWhenAnMCPServerFails(t *testing.T) {

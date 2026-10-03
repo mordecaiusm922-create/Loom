@@ -1,4 +1,4 @@
-module loom
+module github.com/mordecaiusm922-create/loom
 
 go 1.22
 

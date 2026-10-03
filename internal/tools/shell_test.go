@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"loom/internal/config"
-	"loom/internal/governance"
+	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/governance"
 )
 
 // TestShellConfigRegistersExactlyOneShell locks in that sre.shell swaps the

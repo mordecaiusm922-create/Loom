@@ -16,10 +16,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"loom/internal/agent"
-	"loom/internal/config"
-	"loom/internal/governance"
-	"loom/internal/tools"
+	"github.com/mordecaiusm922-create/loom/internal/agent"
+	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/loom/internal/tools"
 )
 
 // confirmRequest crosses from the agent's background goroutine into the
