@@ -198,6 +198,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.layout()
+		m.viewport.SetContent(m.renderTranscript()) // re-wrap to the new width
 		m.ready = true
 		return m, nil
 
@@ -206,7 +207,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentEventMsg:
 		m.applyEvent(agent.Event(msg))
-		m.viewport.SetContent(strings.Join(m.transcript, "\n"))
+		m.viewport.SetContent(m.renderTranscript())
 		m.viewport.GotoBottom()
 		return m, waitForEvent(m.eventCh)
 
@@ -222,7 +223,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.setMood(moodError, moodHold*2)
 			m.transcript = append(m.transcript, errorLineStyle.Render("  x "+msg.err.Error()))
-			m.viewport.SetContent(strings.Join(m.transcript, "\n"))
+			m.viewport.SetContent(m.renderTranscript())
 			m.viewport.GotoBottom()
 		} else {
 			m.setMood(moodHappy, moodHold)
@@ -283,7 +284,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.session.ClearHistory()
 			m.plan = nil
 			m.transcript = append(m.transcript, routeLineStyle.Render("-- conversacion reiniciada --"))
-			m.viewport.SetContent(strings.Join(m.transcript, "\n"))
+			m.viewport.SetContent(m.renderTranscript())
 			m.viewport.GotoBottom()
 			m.input.SetValue("")
 			return m, nil
@@ -304,7 +305,7 @@ func (m *model) startRun(prompt string) tea.Cmd {
 		m.transcript = append(m.transcript, "")
 	}
 	m.transcript = append(m.transcript, promptMarkStyle.Render("› ")+userLineStyle.Render(prompt))
-	m.viewport.SetContent(strings.Join(m.transcript, "\n"))
+	m.viewport.SetContent(m.renderTranscript())
 	m.viewport.GotoBottom()
 	m.doneCh = make(chan error, 1)
 	go func() {
@@ -357,7 +358,9 @@ func (m *model) layout() {
 	if m.viewport.Height < 3 {
 		m.viewport.Height = 3
 	}
-	m.input.Width = m.width - 6
+	// box border (2) + padding (2) + "› " label (2) + cursor (1): anything
+	// wider wraps the input onto a second line.
+	m.input.Width = m.width - 9
 }
 
 func (m *model) View() string {
@@ -440,7 +443,15 @@ func (m *model) renderSidebar() string {
 		fmt.Fprintf(&b, "%s %d. %s\n", style.Render(mark), i+1, step.Title)
 	}
 	b.WriteString("\n" + statusBarStyle.Render(fmt.Sprintf("%d herramientas gobernadas", len(m.session.ToolNames()))))
-	return sidebarBoxStyle.Width(28).Render(b.String())
+	// Same height as the transcript box: an unbounded sidebar (a long plan)
+	// used to push the whole layout taller than the terminal.
+	// Wrap first (sidebar content is 26 wide), then cut to the box height.
+	wrapped := lipgloss.NewStyle().Width(26).Render(strings.TrimRight(b.String(), "\n"))
+	lines := strings.Split(wrapped, "\n")
+	if h := m.viewport.Height; h > 0 && len(lines) > h {
+		lines = append(lines[:h-1], statusBarStyle.Render("..."))
+	}
+	return sidebarBoxStyle.Width(28).Height(m.viewport.Height).Render(strings.Join(lines, "\n"))
 }
 
 func (m *model) renderConfirmOverlay(base string) string {
@@ -484,4 +495,20 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// renderTranscript wraps every transcript line to the viewport width. The
+// viewport itself does not wrap: without this, long model answers were cut
+// off at the right edge instead of continuing on the next line.
+func (m *model) renderTranscript() string {
+	width := m.viewport.Width
+	if width < 20 {
+		width = 20
+	}
+	wrap := lipgloss.NewStyle().Width(width)
+	lines := make([]string, len(m.transcript))
+	for i, line := range m.transcript {
+		lines[i] = wrap.Render(line)
+	}
+	return strings.Join(lines, "\n")
 }

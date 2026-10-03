@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mordecaiusm922-create/loom/internal/agent"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -124,5 +127,34 @@ func TestWelcomeDegradesOnNarrowTerminals(t *testing.T) {
 	narrow := ansi.Strip(welcome(moodIdle, 0, 40, "sess-x", ""))
 	if strings.Contains(narrow, "█▄▄▄") {
 		t.Fatal("narrow welcome must not render block letters")
+	}
+}
+
+// Regression: the viewport does not wrap, so long answers were cut off at
+// the right edge. Every rendered line must fit the transcript width.
+func TestTranscriptWrapsLongLines(t *testing.T) {
+	m := &model{}
+	m.viewport.Width = 30
+	m.transcript = []string{strings.Repeat("palabra ", 20)}
+	for _, line := range strings.Split(m.renderTranscript(), "\n") {
+		if w := ansi.StringWidth(line); w > 30 {
+			t.Fatalf("line width %d > 30: %q", w, line)
+		}
+	}
+	if !strings.Contains(ansi.Strip(m.renderTranscript()), "palabra") || strings.Count(m.renderTranscript(), "\n") < 4 {
+		t.Fatal("long line was not wrapped onto several lines")
+	}
+}
+
+// Regression: a long plan made the sidebar taller than the transcript box
+// and the input wrapped to two lines, so the layout overflowed the screen.
+func TestLayoutFitsTheTerminal(t *testing.T) {
+	m := newScreenModel(t)
+	for i := 0; i < 30; i++ {
+		m.plan = append(m.plan, agent.PlanStep{Title: "paso con un titulo bastante largo para envolver", Status: "pending"})
+	}
+	m.transcript = []string{"x"}
+	if h := lipgloss.Height(m.View()); h > 34 {
+		t.Fatalf("view is %d lines tall in a 34-line terminal", h)
 	}
 }
