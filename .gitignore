@@ -1,12 +1,12 @@
 # Build output
-loom
-loom.exe
-loom.exe~
+/loom
+/loom.exe
+/loom.exe~
 dist/
 
 # Local config: may hold tokens and points at your own clusters.
 # Share loom.config.example.json instead.
-loom.config.json
+/loom.config.json
 
 # Per-session timelines and runs (incident data)
 .loom/
