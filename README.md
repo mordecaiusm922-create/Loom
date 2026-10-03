@@ -1,5 +1,18 @@
 # Loom
 
+[![ci](https://github.com/mordecaiusm922-create/loom/actions/workflows/ci.yml/badge.svg)](https://github.com/mordecaiusm922-create/loom/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+**The open-source SRE agent you can actually let take action — every change policy-gated.**
+
+![loom chat: welcome screen with the on-call owl](docs/screenshots/welcome.png)
+
+| Investigating an incident | DevMind blocks a destructive change |
+|---|---|
+| ![investigating](docs/screenshots/investigating.png) | ![blocked](docs/screenshots/blocked.png) |
+
+![REVIEW: a production change waits for a human](docs/screenshots/review.png)
+
 Loom is a governed execution runtime for SRE / Platform Engineering agents.
 
 It is not a general-purpose coding agent. Its domain is infrastructure and
@@ -153,7 +166,19 @@ the reverse. Both go through the same infra classification and governance.
   `ChangeType` mapping to DevMind's actual enum (inventing a value like
   `terraform_destroy` gets rejected with HTTP 400 by the live API).
 
-## Build
+## Install
+
+```bash
+go install github.com/mordecaiusm922-create/loom/cmd/loom@latest
+loom init
+loom doctor
+loom chat
+```
+
+`go install` puts the binary in `$(go env GOPATH)/bin` (on Windows,
+`%USERPROFILE%\go\bin`); make sure that directory is on your PATH.
+
+## Build from source
 
 Requires Go 1.22 or newer, plus the shell selected in `sre.shell` on PATH:
 PowerShell 7+ (`pwsh`, the default) or `bash`. Native investigation tools additionally need `kubectl`
