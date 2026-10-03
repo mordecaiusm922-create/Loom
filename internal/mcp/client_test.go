@@ -82,11 +82,15 @@ id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
 printf '{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"test","version":"1.0"}}}\n' "$id"
 read -r initialized
 sleep 30`
-	client, err := StartStdioServerWithTimeout(100*time.Millisecond, sh, "-c", script)
+	// The handshake gets a generous timeout: spawning sh can take well over
+	// 100ms on a loaded Windows/CI machine, and that is not what this test
+	// is about. Only the call under test is held to the short timeout.
+	client, err := StartStdioServerWithTimeout(10*time.Second, sh, "-c", script)
 	if err != nil {
 		t.Fatalf("StartStdioServerWithTimeout: %v", err)
 	}
 	defer client.Close()
+	client.timeout = 100 * time.Millisecond
 
 	start := time.Now()
 	_, err = client.DiscoverTools()

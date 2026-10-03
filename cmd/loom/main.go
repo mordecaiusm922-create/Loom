@@ -30,7 +30,8 @@ Tipos de tarea: trivial_edit, planning, security_review, incident_response.
 Dominio: Terraform/OpenTofu, Kubernetes/Helm, CLIs de cloud (aws/gcloud/az),
 CI/CD, observabilidad (Prometheus/Grafana/Datadog), gestion de incidentes
 y control de acceso (IAM, rotacion de secretos). El shell subyacente es
-PowerShell (pwsh); ademas hay herramientas nativas de solo lectura
+PowerShell (pwsh) por defecto, o bash con "sre.shell": "bash"; ademas hay
+herramientas nativas de solo lectura
 (k8s_get, k8s_describe, k8s_logs, cloud_read, metrics_query).
 La gobernanza es obligatoria. Un opt-out local requiere
 LOOM_UNSAFE_DISABLE_GOVERNANCE=1 de forma explicita.
@@ -233,7 +234,14 @@ func cmdDoctor() {
 		fmt.Println("  anthropic: API key configured")
 	}
 	fmt.Printf("  ollama: configured at %s (connectivity is checked when used)\n", cfg.Providers.Ollama.BaseURL)
-	if _, err := exec.LookPath("pwsh"); err == nil {
+	if cfg.Sre.ShellName() == config.ShellBash {
+		if _, err := exec.LookPath("bash"); err == nil {
+			fmt.Println("  shell: bash found (sre.shell=bash)")
+		} else {
+			fmt.Println("  shell: ERROR -- sre.shell=bash but bash not found in PATH")
+			failures++
+		}
+	} else if _, err := exec.LookPath("pwsh"); err == nil {
 		fmt.Println("  shell: pwsh (PowerShell 7+) found")
 	} else if runtime.GOOS == "windows" {
 		if _, err := exec.LookPath("powershell.exe"); err == nil {

@@ -78,6 +78,25 @@ type SreConfig struct {
 	// MaxToolOutputBytes caps what one tool call adds to the conversation.
 	// 0 means DefaultMaxToolOutputBytes; a negative value disables the cap.
 	MaxToolOutputBytes int `json:"max_tool_output_bytes,omitempty"`
+
+	// Shell selects the general-purpose shell tool: "powershell" (default)
+	// or "bash". Only one is registered per session, and its tool name
+	// matches the shell so the model never writes bash syntax into pwsh.
+	Shell string `json:"shell,omitempty"`
+}
+
+// Shell names accepted in sre.shell.
+const (
+	ShellPowerShell = "powershell"
+	ShellBash       = "bash"
+)
+
+// ShellName returns the configured shell, defaulting to PowerShell.
+func (s SreConfig) ShellName() string {
+	if strings.EqualFold(strings.TrimSpace(s.Shell), ShellBash) {
+		return ShellBash
+	}
+	return ShellPowerShell
 }
 
 // DefaultMaxToolOutputBytes keeps a single `kubectl logs` or `terraform
@@ -171,6 +190,11 @@ func Load(path string) (Config, error) {
 	cfg := Default()
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Sre.Shell)) {
+	case "", ShellPowerShell, ShellBash:
+	default:
+		return Config{}, fmt.Errorf("sre.shell invalido %q: usa %q o %q", cfg.Sre.Shell, ShellPowerShell, ShellBash)
 	}
 	return cfg, nil
 }

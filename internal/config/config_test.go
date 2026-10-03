@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestRouteForPromptPrioritizesRisk(t *testing.T) {
 	cfg := Default()
@@ -28,5 +31,24 @@ func TestRouteForPromptAcceptsCustomProviderID(t *testing.T) {
 	}
 	if _, ok := cfg.CustomProvider(route.Provider); !ok {
 		t.Fatal("custom provider was not resolved")
+	}
+}
+
+func TestLoadRejectsUnknownShell(t *testing.T) {
+	path := t.TempDir() + "/loom.config.json"
+	if err := os.WriteFile(path, []byte(`{"sre":{"shell":"zsh"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("want an error for sre.shell=zsh")
+	}
+}
+
+func TestShellNameDefaultsToPowerShell(t *testing.T) {
+	if got := (SreConfig{}).ShellName(); got != ShellPowerShell {
+		t.Fatalf("ShellName() = %q, want %q", got, ShellPowerShell)
+	}
+	if got := (SreConfig{Shell: " Bash "}).ShellName(); got != ShellBash {
+		t.Fatalf("ShellName() = %q, want %q", got, ShellBash)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -61,7 +62,7 @@ type Registry struct {
 func NewRegistry(gov governance.Engine, agentID, sessionID string, sre config.SreConfig) *Registry {
 	r := &Registry{tools: map[string]Tool{}, gov: gov, agentID: agentID, sessionID: sessionID, sre: sre}
 	r.confirm = confirmInTerminal
-	r.register(powershellTool())
+	r.register(shellTool(sre.ShellName()))
 	r.register(readFileTool())
 	r.register(writeFileTool())
 	r.register(updatePlanTool())
@@ -155,7 +156,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	var decision *governance.EvaluateResponse
 	var err error
 	engineUsed := "policy"
-	if name == "powershell" {
+	if isShellTool(name) {
 		if command, _ := input["command"].(string); command != "" {
 			if changeType, isChange := iacChangeType(command); isChange {
 				// Fail-safe: an infrastructure change whose target cannot be
@@ -245,6 +246,12 @@ func confirmInTerminal(decision governance.Decision, response *governance.Evalua
 	return strings.TrimSpace(strings.ToLower(line)) == "y"
 }
 
+// isShellTool reports whether name is one of the general-purpose shell
+// tools, whose free-text commands get infra classification before governance.
+func isShellTool(name string) bool {
+	return name == config.ShellPowerShell || name == config.ShellBash
+}
+
 // resolvePowerShellBinary finds a PowerShell executable on PATH. PowerShell
 // 7+ ("pwsh") is preferred on every OS because it is the one binary that
 // actually exists cross-platform; Windows PowerShell 5.1 ("powershell.exe")
@@ -261,14 +268,81 @@ func resolvePowerShellBinary() (string, error) {
 	return "", fmt.Errorf("no se encontro PowerShell (pwsh) en PATH; instala PowerShell 7+ (https://aka.ms/powershell)")
 }
 
-func powershellTool() Tool {
+// resolveBashBinary finds bash on PATH.
+//
+// On Windows, %SystemRoot%\System32\bash.exe is the WSL launcher, which
+// usually comes first on PATH and fails outright when no WSL distribution
+// is installed ("El subsistema de Windows para Linux no tiene
+// distribuciones instaladas"). It is skipped in favor of a real bash such
+// as Git Bash, including Git's default install locations when Git's bin
+// directory is not on PATH.
+func resolveBashBinary() (string, error) {
+	if runtime.GOOS != "windows" {
+		if path, err := exec.LookPath("bash"); err == nil {
+			return path, nil
+		}
+		return "", fmt.Errorf("no se encontro bash en PATH; instala bash o usa \"sre.shell\": \"powershell\"")
+	}
+	var candidates []string
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		candidates = append(candidates, filepath.Join(dir, "bash.exe"))
+	}
+	for _, env := range []string{"ProgramFiles", "ProgramW6432", "LocalAppData"} {
+		if base := os.Getenv(env); base != "" {
+			candidates = append(candidates, filepath.Join(base, "Git", "bin", "bash.exe"), filepath.Join(base, "Programs", "Git", "bin", "bash.exe"))
+		}
+	}
+	if path := pickWindowsBash(candidates, os.Getenv("SystemRoot"), fileExists); path != "" {
+		return path, nil
+	}
+	return "", fmt.Errorf("no se encontro bash (Git Bash) en Windows; System32\\bash.exe es el lanzador de WSL y no se usa. Instala Git for Windows o usa \"sre.shell\": \"powershell\"")
+}
+
+// pickWindowsBash returns the first existing candidate that is not the WSL
+// launcher under systemRoot.
+func pickWindowsBash(candidates []string, systemRoot string, exists func(string) bool) string {
+	wsl := ""
+	if systemRoot != "" {
+		wsl = strings.ToLower(filepath.Clean(filepath.Join(systemRoot, "System32", "bash.exe")))
+	}
+	for _, candidate := range candidates {
+		clean := strings.ToLower(filepath.Clean(candidate))
+		if clean == wsl || strings.HasSuffix(clean, `\system32\bash.exe`) || strings.HasSuffix(clean, `\sysnative\bash.exe`) {
+			continue
+		}
+		if exists(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// shellTool builds the general-purpose shell tool for the configured shell.
+// Only one is registered, so the model is never offered a shell whose
+// syntax doesn't match what will actually run.
+func shellTool(shell string) Tool {
+	label, resolve := "PowerShell", resolvePowerShellBinary
+	argv := func(command string) []string { return []string{"-NoProfile", "-NonInteractive", "-Command", command} }
+	if shell == config.ShellBash {
+		label, resolve = "bash", resolveBashBinary
+		// --noprofile/--norc: no user dotfiles altering behavior; -o pipefail
+		// so a failure inside a pipeline is reported, not masked by `| head`.
+		argv = func(command string) []string {
+			return []string{"--noprofile", "--norc", "-o", "pipefail", "-c", command}
+		}
+	}
 	return Tool{
-		Name: "powershell",
-		Description: "Ejecuta un comando de PowerShell (terraform/tofu, kubectl, helm, " +
-			"aws/gcloud/az, scripts de runbook, consultas a Prometheus/Grafana/Datadog " +
-			"via Invoke-RestMethod, etc.) y retorna stdout+stderr. Prefiere las " +
+		Name: shell,
+		Description: "Ejecuta un comando de " + label + " (terraform/tofu, kubectl, helm, " +
+			"aws/gcloud/az, scripts de runbook, consultas HTTP a Prometheus/Grafana/Datadog, " +
+			"etc.) y retorna stdout+stderr. Prefiere las " +
 			"herramientas nativas (k8s_get, k8s_describe, k8s_logs, cloud_read, " +
-			"metrics_query) para investigacion de solo lectura; usa powershell cuando " +
+			"metrics_query) para investigacion de solo lectura; usa " + shell + " cuando " +
 			"necesites algo que esas herramientas no cubren. Cada comando de " +
 			"infraestructura es clasificado y evaluado por DevMind antes de ejecutarse.",
 		InputSchema: map[string]any{
@@ -276,12 +350,12 @@ func powershellTool() Tool {
 			"properties": map[string]any{
 				"command": map[string]any{
 					"type":        "string",
-					"description": "El comando de PowerShell completo a ejecutar, tal cual se escribiria en la terminal.",
+					"description": "El comando de " + label + " completo a ejecutar, tal cual se escribiria en la terminal.",
 				},
 			},
 			"required": []string{"command"},
 		},
-		// powershell is Loom's general-purpose escape hatch: it can run
+		// The shell tool is Loom's general-purpose escape hatch: it can run
 		// absolutely anything, including reads. There is no reliable way to
 		// tell a read command from a mutation by string-matching alone, and
 		// getting that wrong in the mutating direction defeats --dry-run
@@ -296,11 +370,11 @@ func powershellTool() Tool {
 			if command == "" {
 				return "", fmt.Errorf("falta 'command'")
 			}
-			bin, err := resolvePowerShellBinary()
+			bin, err := resolve()
 			if err != nil {
 				return "", err
 			}
-			cmd := exec.CommandContext(ctx, bin, "-NoProfile", "-NonInteractive", "-Command", command)
+			cmd := exec.CommandContext(ctx, bin, argv(command)...)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				return string(out), fmt.Errorf("comando fallo: %w", err)
@@ -361,7 +435,7 @@ func writeFileTool() Tool {
 			"required": []string{"path", "content"},
 		},
 		// write_file always mutates the filesystem -- never ambiguous, so
-		// unlike powershell this doesn't need the conservative default,
+		// unlike the shell tool this doesn't need the conservative default,
 		// it just is one.
 		IsMutating: func(map[string]any) bool { return true },
 		Run: func(ctx context.Context, input map[string]any) (string, error) {

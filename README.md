@@ -13,12 +13,21 @@ outside its domain.
 The model thinks, Loom acts, and DevMind decides whether each tool action may
 run. The model provider is replaceable; the policy gate is not accidentally
 optional. Loom talks to DevMind over its REST API today; that is an
-implementation detail, not a contract — the plan is for Loom to speak to
-DevMind over MCP once DevMind exposes one (see Roadmap).
+implementation detail, not a contract — DevMind now also exposes a remote
+MCP server, and moving Loom's governance client onto it is planned (see
+Roadmap, Phase 3).
 
-The shell underneath Loom is PowerShell (`pwsh`), not bash — it is the one
-shell that is genuinely cross-platform across Windows, Linux, and macOS,
-which matters when a team's cloud footprint spans more than one OS.
+The shell underneath Loom is configurable with `sre.shell`:
+
+- `"powershell"` (default) — PowerShell 7+ (`pwsh`), the one shell that is
+  genuinely cross-platform across Windows, Linux, and macOS.
+- `"bash"` — for teams whose runbooks and muscle memory are bash. Commands
+  run as `bash --noprofile --norc -o pipefail -c`, so dotfiles can't change
+  behavior and a failure inside a pipeline is reported, not masked.
+
+Only the configured shell is offered to the model (as a tool named
+`powershell` or `bash`), so it never writes bash syntax into PowerShell or
+the reverse. Both go through the same infra classification and governance.
 
 ## What works
 
@@ -146,8 +155,8 @@ which matters when a team's cloud footprint spans more than one OS.
 
 ## Build
 
-Requires Go 1.22 or newer, and PowerShell 7+ (`pwsh`) on PATH — Loom's shell
-tool depends on it. Native investigation tools additionally need `kubectl`
+Requires Go 1.22 or newer, plus the shell selected in `sre.shell` on PATH:
+PowerShell 7+ (`pwsh`, the default) or `bash`. Native investigation tools additionally need `kubectl`
 and/or `aws`/`gcloud`/`az` on PATH for the ones you actually use; `loom
 doctor` reports what it finds.
 
@@ -242,6 +251,7 @@ on every such session. This opt-out exists for development, not production.
     "base_url": "https://devmind-2cej.onrender.com"
   },
   "sre": {
+    "shell": "bash",
     "kube_context": "prod-eks",
     "cloud": { "provider": "aws", "profile": "prod" },
     "observability": {
@@ -337,8 +347,8 @@ maturity:
   hatch. See `ROADMAP.md` §2.4.
 
 ### Phase 3 — DevMind integration rework (blocked on DevMind's own maturity)
-- Replace the REST `governance.Engine` implementation with an MCP client,
-  once DevMind exposes an MCP server. `governance.Engine` is already an
+- Replace the REST `governance.Engine` implementation with an MCP client
+  against DevMind's MCP server (now live). `governance.Engine` is already an
   interface (`EvaluateAction`/`EvaluateChange`); this should be a new
   implementation behind it, not a rewrite of `tools.Registry` or the agent
   loop — that boundary is the whole reason the interface exists. Doing this

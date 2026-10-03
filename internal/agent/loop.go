@@ -16,8 +16,11 @@ import (
 	"loom/internal/tools"
 )
 
-const systemPrompt = `Eres Loom, un agente de SRE / Platform Engineering operando en una terminal
-sobre PowerShell.
+// systemPromptTemplate has two %[1]s slots for the configured shell tool
+// name (powershell or bash) so the prompt never names a tool that is not
+// registered. Build it with buildSystemPrompt.
+const systemPromptTemplate = `Eres Loom, un agente de SRE / Platform Engineering operando en una terminal
+sobre %[1]s.
 
 Tu dominio es exclusivamente operacion de infraestructura y plataforma:
 Terraform/OpenTofu, Kubernetes/Helm, CLIs de cloud (aws/gcloud/az), CI/CD,
@@ -30,8 +33,8 @@ pedido que si sea de tu dominio, en vez de improvisar fuera de el.
 
 Para investigacion de solo lectura preferi las herramientas nativas
 k8s_get, k8s_describe, k8s_logs, cloud_read, y metrics_query en vez de
-powershell -- son mas seguras (no interpretan un shell) y le dan a
-gobernanza una llamada mas clara de evaluar. Usa powershell cuando la
+%[1]s -- son mas seguras (no interpretan un shell) y le dan a
+gobernanza una llamada mas clara de evaluar. Usa %[1]s cuando la
 tarea requiera algo que esas herramientas no cubren, o para aplicar un
 cambio real (terraform, kubectl apply/delete/scale/rollout, helm, etc.).
 
@@ -52,6 +55,10 @@ real, no un obstaculo a evadir reformulando el comando. Despues de aplicar
 un cambio, verifica su resultado (k8s_get del recurso, terraform plan sin
 diff, metrics_query, etc.) antes de reportar la tarea como completa; no la
 des por terminada solo porque dejaste de pedir herramientas.`
+
+func buildSystemPrompt(shell string) string {
+	return fmt.Sprintf(systemPromptTemplate, shell)
+}
 
 const maxIterations = 25
 
@@ -326,7 +333,7 @@ func (s *Session) RunWithTask(ctx context.Context, userPrompt, taskHint string) 
 		return err
 	}
 	for iteration := 0; iteration < maxIterations; iteration++ {
-		response, err := provider.Complete(ctx, providers.CompletionRequest{SystemPrompt: systemPrompt, Messages: messages, Tools: toolSpecs})
+		response, err := provider.Complete(ctx, providers.CompletionRequest{SystemPrompt: buildSystemPrompt(s.cfg.Sre.ShellName()), Messages: messages, Tools: toolSpecs})
 		if err != nil {
 			return fail(fmt.Errorf("error del provider %s: %w", provider.Name(), err))
 		}

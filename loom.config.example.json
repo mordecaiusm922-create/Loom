@@ -47,6 +47,7 @@
     "token": ""
   },
   "sre": {
+    "shell": "powershell",
     "kube_context": "",
     "cloud": {
       "provider": "aws",
