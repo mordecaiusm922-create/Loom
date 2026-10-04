@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -140,7 +141,11 @@ func (d *DevMindEngine) post(ctx context.Context, path string, body []byte) (*Ev
 		return failClosed(fmt.Sprintf("no se pudo leer respuesta de DevMind: %v", readErr)), nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return failClosed(fmt.Sprintf("DevMind devolvio HTTP %d", resp.StatusCode)), nil
+		reason := fmt.Sprintf("DevMind devolvio HTTP %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			reason += " (token ausente o rechazado: define DEVMIND_TOKEN y corre loom doctor)"
+		}
+		return failClosed(reason), nil
 	}
 	var decision EvaluateResponse
 	if err := json.Unmarshal(raw, &decision); err != nil {
@@ -150,6 +155,57 @@ func (d *DevMindEngine) post(ctx context.Context, path string, body []byte) (*Ev
 		return failClosed(fmt.Sprintf("decision invalida de DevMind: %q", decision.DecisionValue)), nil
 	}
 	return &decision, nil
+}
+
+// ErrNoToken means no DevMind token is configured at all.
+var ErrNoToken = errors.New("no DevMind token configured: export DEVMIND_TOKEN=dvm_...")
+
+// Check verifies, for `loom doctor`, that DevMind is reachable and accepts
+// the configured token, by evaluating one harmless read-only probe action.
+// Unlike EvaluateAction it never turns a failure into a decision: it
+// returns an error that says exactly what to fix. The deadline comes from
+// ctx, so the caller can allow for a cold start of the hosted service.
+func (d *DevMindEngine) Check(ctx context.Context, agentID string) error {
+	if strings.TrimSpace(d.Token) == "" {
+		return ErrNoToken
+	}
+	body, err := json.Marshal(evaluateRequest{
+		AgentID:   agentID,
+		Tool:      "loom_doctor",
+		Operation: "read",
+		Payload:   "loom doctor: connectivity and token check",
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(d.BaseURL, "/")+"/evaluate", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+d.Token)
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach DevMind at %s: %w", d.BaseURL, err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var decision EvaluateResponse
+		if err := json.Unmarshal(raw, &decision); err != nil || !validDecision(decision.DecisionValue) {
+			return fmt.Errorf("DevMind answered with an unexpected response body")
+		}
+		return nil
+	case http.StatusUnauthorized:
+		return fmt.Errorf("DevMind rejected the token (HTTP 401): it is invalid, revoked, or issued for another DevMind service")
+	case http.StatusForbidden:
+		return fmt.Errorf("the token is bound to a different agent (HTTP 403): set LOOM_AGENT_ID to the agent it was issued for (now %q)", agentID)
+	case http.StatusServiceUnavailable:
+		return fmt.Errorf("DevMind could not validate the token (HTTP 503): the token may not exist, or the service is unavailable")
+	default:
+		return fmt.Errorf("DevMind returned HTTP %d", resp.StatusCode)
+	}
 }
 
 func validDecision(decision Decision) bool {

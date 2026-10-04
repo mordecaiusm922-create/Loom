@@ -8,9 +8,11 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/mordecaiusm922-create/loom/internal/agent"
 	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/loom/internal/governance"
 	"github.com/mordecaiusm922-create/loom/internal/runbook"
 	"github.com/mordecaiusm922-create/loom/internal/tui"
 )
@@ -30,11 +32,12 @@ Tipos de tarea: trivial_edit, planning, security_review, incident_response.
 Dominio: Terraform/OpenTofu, Kubernetes/Helm, CLIs de cloud (aws/gcloud/az),
 CI/CD, observabilidad (Prometheus/Grafana/Datadog), gestion de incidentes
 y control de acceso (IAM, rotacion de secretos). El shell subyacente es
-PowerShell (pwsh) por defecto, o bash con "sre.shell": "bash"; ademas hay
-herramientas nativas de solo lectura
+bash en Linux/macOS y PowerShell en Windows (cambialo con "sre.shell");
+ademas hay herramientas nativas de solo lectura
 (k8s_get, k8s_describe, k8s_logs, cloud_read, metrics_query).
-La gobernanza es obligatoria. Un opt-out local requiere
-LOOM_UNSAFE_DISABLE_GOVERNANCE=1 de forma explicita.
+La gobernanza es obligatoria: exporta DEVMIND_TOKEN=dvm_... y verifica con
+loom doctor. Un opt-out local requiere LOOM_UNSAFE_DISABLE_GOVERNANCE=1 de
+forma explicita.
 `
 
 func main() {
@@ -125,10 +128,7 @@ func cmdRun(args []string) {
 		prompt = contextSummary + "\n\nNuevo contexto del operador:\n" + prompt
 	}
 
-	agentID := os.Getenv("LOOM_AGENT_ID")
-	if agentID == "" {
-		agentID = "loom-sre"
-	}
+	agentID := agentIDFromEnv()
 	sessionID := agent.NewSessionID()
 	session, err := agent.NewSession(cfg, agentID, sessionID)
 	if err != nil {
@@ -182,10 +182,7 @@ func cmdChat(args []string) {
 	if err != nil {
 		fatal("cargando config: %v", err)
 	}
-	agentID := os.Getenv("LOOM_AGENT_ID")
-	if agentID == "" {
-		agentID = "loom-sre"
-	}
+	agentID := agentIDFromEnv()
 	sessionID := agent.NewSessionID()
 	if err := tui.Run(cfg, agentID, sessionID, dryRun); err != nil {
 		fatal("%v", err)
@@ -222,6 +219,7 @@ func cmdDoctor() {
 	fmt.Println("  config: OK")
 	if cfg.Governance.Enabled && cfg.Governance.Engine == "devmind" && cfg.Governance.BaseURL != "" {
 		fmt.Printf("  governance: OK (%s)\n", cfg.Governance.BaseURL)
+		failures += checkDevMind(cfg)
 	} else if os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1" {
 		fmt.Println("  governance: UNSAFE opt-out enabled")
 	} else {
@@ -251,7 +249,7 @@ func cmdDoctor() {
 			failures++
 		}
 	} else {
-		fmt.Println("  shell: ERROR -- pwsh not found in PATH (required on non-Windows)")
+		fmt.Println("  shell: ERROR -- sre.shell=powershell but pwsh not found in PATH")
 		failures++
 	}
 	kubeOK := checkBinary("kubectl")
@@ -270,8 +268,44 @@ func cmdConfig() {
 	if err != nil {
 		fatal("cargando config: %v", err)
 	}
+	if cfg.Governance.Token != "" {
+		cfg.Governance.Token = "REDACTED"
+	}
 	data, _ := json.MarshalIndent(cfg, "", "  ")
 	fmt.Println(string(data))
+}
+
+// agentIDFromEnv is the agent identity Loom presents to DevMind.
+func agentIDFromEnv() string {
+	if id := os.Getenv("LOOM_AGENT_ID"); id != "" {
+		return id
+	}
+	return "loom-sre"
+}
+
+// checkDevMind reports where the token comes from and proves it works with
+// one live probe, so a missing or rejected token surfaces here instead of
+// as an unexplained REVIEW on every tool call. Returns the failure count.
+func checkDevMind(cfg config.Config) int {
+	switch {
+	case strings.TrimSpace(os.Getenv(config.DevMindTokenEnv)) != "":
+		fmt.Println("  devmind token: set via DEVMIND_TOKEN")
+	case cfg.Governance.Token != "":
+		fmt.Println("  devmind token: set in loom.config.json (prefer DEVMIND_TOKEN so it never sits in a file)")
+	default:
+		fmt.Println("  devmind token: ERROR -- missing; export DEVMIND_TOKEN=dvm_...")
+		return 1
+	}
+	fmt.Println("  devmind: checking connectivity and token (up to a minute if the service was idle)...")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	engine := governance.NewDevMindEngine(cfg.Governance.BaseURL, cfg.Governance.Token)
+	if err := engine.Check(ctx, agentIDFromEnv()); err != nil {
+		fmt.Printf("  devmind: ERROR -- %v\n", err)
+		return 1
+	}
+	fmt.Println("  devmind: OK (token accepted)")
+	return 0
 }
 
 func fatal(format string, args ...any) {

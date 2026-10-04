@@ -17,19 +17,15 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.24.x"
       - name: Build Loom
         run: go build -o loom ./cmd/loom
       - name: Configure Loom
-        env:
-          DEVMIND_TOKEN: ${{ secrets.DEVMIND_TOKEN }}
-        run: |
-          cp loom.config.example.json loom.config.json
-          jq --arg token "$DEVMIND_TOKEN" '.governance.token = $token' loom.config.json > loom.config.ci.json
-          mv loom.config.ci.json loom.config.json
+        run: cp loom.config.example.json loom.config.json
       - name: Review Terraform diff
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DEVMIND_TOKEN: ${{ secrets.DEVMIND_TOKEN }}
         run: |
           DIFF="$(git diff --unified=0 "origin/${{ github.base_ref }}"...HEAD -- '*.tf')"
           test -n "$DIFF"

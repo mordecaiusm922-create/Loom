@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -79,9 +80,11 @@ type SreConfig struct {
 	// 0 means DefaultMaxToolOutputBytes; a negative value disables the cap.
 	MaxToolOutputBytes int `json:"max_tool_output_bytes,omitempty"`
 
-	// Shell selects the general-purpose shell tool: "powershell" (default)
-	// or "bash". Only one is registered per session, and its tool name
-	// matches the shell so the model never writes bash syntax into pwsh.
+	// Shell selects the general-purpose shell tool: "bash" or "powershell".
+	// Load fills an empty value with DefaultShell for the host OS (bash on
+	// Linux/macOS, powershell on Windows). Only one is registered per
+	// session, and its tool name matches the shell so the model never
+	// writes bash syntax into pwsh.
 	Shell string `json:"shell,omitempty"`
 }
 
@@ -91,7 +94,18 @@ const (
 	ShellBash       = "bash"
 )
 
-// ShellName returns the configured shell, defaulting to PowerShell.
+// DefaultShell is the shell an unset sre.shell resolves to on goos: bash
+// wherever bash is the native shell, PowerShell only on Windows.
+func DefaultShell(goos string) string {
+	if goos == "windows" {
+		return ShellPowerShell
+	}
+	return ShellBash
+}
+
+// ShellName returns the configured shell. Load already resolved an empty
+// value to the host default; a zero SreConfig built directly in code still
+// falls back to PowerShell.
 func (s SreConfig) ShellName() string {
 	if strings.EqualFold(strings.TrimSpace(s.Shell), ShellBash) {
 		return ShellBash
@@ -147,8 +161,15 @@ type GovernanceConfig struct {
 	Enabled bool   `json:"enabled"`
 	Engine  string `json:"engine"`
 	BaseURL string `json:"base_url,omitempty"`
-	Token   string `json:"token,omitempty"`
+	// Token authenticates Loom to DevMind. Prefer the DEVMIND_TOKEN
+	// environment variable, which overrides this field, so the token
+	// never has to be written into a file.
+	Token string `json:"token,omitempty"`
 }
+
+// DevMindTokenEnv is the environment variable that carries the DevMind
+// token. When set it takes precedence over governance.token in the file.
+const DevMindTokenEnv = "DEVMIND_TOKEN"
 
 // Route is the concrete model selection made for one request.
 type Route struct {
@@ -173,6 +194,7 @@ func Default() Config {
 		Engine:  "devmind",
 		BaseURL: "https://devmind-2cej.onrender.com",
 	}
+	cfg.Sre.Shell = DefaultShell(runtime.GOOS)
 	return cfg
 }
 
@@ -180,21 +202,26 @@ func Load(path string) (Config, error) {
 	if path == "" {
 		path = "loom.config.json"
 	}
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return Default(), nil
-	}
-	if err != nil {
-		return Config{}, err
-	}
 	cfg := Default()
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	data, err := os.ReadFile(path)
+	switch {
+	case os.IsNotExist(err):
+	case err != nil:
 		return Config{}, err
+	default:
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return Config{}, err
+		}
 	}
 	switch strings.ToLower(strings.TrimSpace(cfg.Sre.Shell)) {
-	case "", ShellPowerShell, ShellBash:
+	case "":
+		cfg.Sre.Shell = DefaultShell(runtime.GOOS)
+	case ShellPowerShell, ShellBash:
 	default:
 		return Config{}, fmt.Errorf("sre.shell invalido %q: usa %q o %q", cfg.Sre.Shell, ShellPowerShell, ShellBash)
+	}
+	if token := strings.TrimSpace(os.Getenv(DevMindTokenEnv)); token != "" {
+		cfg.Governance.Token = token
 	}
 	return cfg, nil
 }
