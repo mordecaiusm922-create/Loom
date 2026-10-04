@@ -206,7 +206,7 @@ token, governance still fails closed: every action becomes `REVIEW`, never
 
 ## Build from source
 
-Requires Go 1.22 or newer, plus the shell selected in `sre.shell` on PATH:
+Requires Go 1.24 or newer (older Go linkers omit the LC_UUID load command, so the binary will not launch on current macOS), plus the shell selected in `sre.shell` on PATH:
 `bash` (default on Linux/macOS) or PowerShell 7+ (`pwsh`, default on Windows). Native investigation tools additionally need `kubectl`
 and/or `aws`/`gcloud`/`az` on PATH for the ones you actually use; `loom
 doctor` reports what it finds.

@@ -1,6 +1,6 @@
 module github.com/mordecaiusm922-create/loom
 
-go 1.22
+go 1.24
 
 replace golang.org/x/sys => github.com/golang/sys v0.26.0
 
