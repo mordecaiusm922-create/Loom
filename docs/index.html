@@ -207,15 +207,15 @@ const STEPS={
   ["Install Loom","go install github.com/mordecaiusm922-create/loom/cmd/loom@latest"],
   ["Make sure Go's bin directory is on your PATH","export PATH=\"$PATH:$(go env GOPATH)/bin\""],
   ["Create a config in your infra repo","loom init"],
-  ["Add your model key and DevMind token","export ANTHROPIC_API_KEY=sk-ant-...\nexport DEVMIND_TOKEN=dm-..."],
-  ["Check your setup (shell, kubectl, terraform, governance)","loom doctor"],
+  ["Add your model key and DevMind token","export ANTHROPIC_API_KEY=sk-ant-...\nexport DEVMIND_TOKEN=dvm_..."],
+  ["Check your setup (shell, kubectl, terraform, DevMind token)","loom doctor"],
   ["Open the agent","loom chat"]],
  win:[
   ["Install Loom","go install github.com/mordecaiusm922-create/loom/cmd/loom@latest"],
   ["Make sure Go's bin directory is on your PATH","$env:Path += \";$env:USERPROFILE\\go\\bin\""],
   ["Create a config in your infra repo","loom init"],
-  ["Add your model key and DevMind token","$env:ANTHROPIC_API_KEY = \"sk-ant-...\"\n$env:DEVMIND_TOKEN = \"dm-...\""],
-  ["Check your setup (shell, kubectl, terraform, governance)","loom doctor"],
+  ["Add your model key and DevMind token","$env:ANTHROPIC_API_KEY = \"sk-ant-...\"\n$env:DEVMIND_TOKEN = \"dvm_...\""],
+  ["Check your setup (shell, kubectl, terraform, DevMind token)","loom doctor"],
   ["Open the agent","loom chat"]]};
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function renderSteps(os){const box=document.getElementById("steps");box.innerHTML="";STEPS[os].forEach(([what,cmd],i)=>{const row=document.createElement("div");row.className="cmd";row.innerHTML='<div class="num">'+(i+1)+'</div><div class="body"><div class="what">'+what+'</div><pre>'+cmd.split("\n").map(l=>'<span class="p">'+(os==="win"?"PS&gt; ":"$ ")+'</span>'+esc(l)).join("\n")+'</pre></div>';const btn=document.createElement("button");btn.className="copy";btn.textContent="Copy";btn.onclick=()=>{navigator.clipboard.writeText(cmd).then(()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy",1400)})};row.appendChild(btn);box.appendChild(row)})}

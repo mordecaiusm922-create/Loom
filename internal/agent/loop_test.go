@@ -31,7 +31,7 @@ func TestNewSessionDegradesPartiallyWhenAnMCPServerFails(t *testing.T) {
 	}
 	found := false
 	for _, name := range session.ToolNames() {
-		if name == "powershell" {
+		if name == cfg.Sre.ShellName() {
 			found = true
 		}
 	}

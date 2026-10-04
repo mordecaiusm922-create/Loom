@@ -24,19 +24,21 @@ application feature work, Loom says so and redirects instead of improvising
 outside its domain.
 
 The model thinks, Loom acts, and DevMind decides whether each tool action may
-run. The model provider is replaceable; the policy gate is not accidentally
-optional. Loom talks to DevMind over its REST API today; that is an
-implementation detail, not a contract — DevMind now also exposes a remote
-MCP server, and moving Loom's governance client onto it is planned (see
-Roadmap, Phase 3).
+run. DevMind is a deterministic policy engine: the same action always gets
+the same decision, and no LLM sits in the decision path. The model provider
+is replaceable; the policy gate is not accidentally optional. Loom talks to
+DevMind over its REST API today; that is an implementation detail, not a
+contract — DevMind also exposes a remote MCP server, and moving Loom's
+governance client onto it is planned (see Roadmap, Phase 3).
 
-The shell underneath Loom is configurable with `sre.shell`:
+The shell underneath Loom is configurable with `sre.shell`. When unset, it
+follows the host OS:
 
-- `"powershell"` (default) — PowerShell 7+ (`pwsh`), the one shell that is
-  genuinely cross-platform across Windows, Linux, and macOS.
-- `"bash"` — for teams whose runbooks and muscle memory are bash. Commands
-  run as `bash --noprofile --norc -o pipefail -c`, so dotfiles can't change
+- `"bash"` (default on Linux and macOS) — commands run as
+  `bash --noprofile --norc -o pipefail -c`, so dotfiles can't change
   behavior and a failure inside a pipeline is reported, not masked.
+- `"powershell"` (default on Windows) — PowerShell 7+ (`pwsh`), also usable
+  on Linux and macOS by setting it explicitly.
 
 Only the configured shell is offered to the model (as a tool named
 `powershell` or `bash`), so it never writes bash syntax into PowerShell or
@@ -50,7 +52,7 @@ the reverse. Both go through the same infra classification and governance.
 - Native tool-call conversations for Anthropic, modern Ollama models, and
   OpenAI-compatible providers that declare `supports_tooling: true`.
 - A DevMind decision before **every** built-in tool call — the generic
-  `powershell` escape hatch, `read_file`, `write_file`, `update_plan`, and
+  shell escape hatch (`bash` or `powershell`), `read_file`, `write_file`, `update_plan`, and
   every native SRE tool below. No tool bypasses this, including the
   read-only ones.
 - **Native, structured investigation tools** that call binaries directly via
@@ -76,9 +78,9 @@ the reverse. Both go through the same infra classification and governance.
     Datadog) table; range/matrix results are returned in full on purpose —
     condensing a time series would throw away the trend. `raw: true` always
     returns the full API response.
-  - The general-purpose `powershell` tool remains for anything these don't
+  - The general-purpose shell tool (`bash` or `powershell`) remains for anything these don't
     cover, and for applying real changes.
-- Infra-aware classification of `powershell` commands into DevMind's real
+- Infra-aware classification of shell commands into DevMind's real
   `ChangeType` enum before they're evaluated, so the blast-radius invariant
   actually fires instead of silently no-oping on a raw command string:
   - **Terraform/OpenTofu** (`plan`/`apply`/`destroy`) → `terraform_apply`
@@ -132,7 +134,7 @@ the reverse. Both go through the same infra classification and governance.
   available. Two examples ship in `runbooks/`: `pod-crashloop` and
   `high-latency`.
 - **`--dry-run` rehearsal mode**, on both `loom run` and `loom chat`. A
-  mutating tool call (`powershell`, `write_file`, or any MCP tool without an
+  mutating tool call (the shell tool, `write_file`, or any MCP tool without an
   explicit `readOnlyHint` annotation) is skipped *before governance is even
   consulted* and reported back as `[dry-run] <tool> no se ejecuto`. Read-only
   tools (`k8s_get`, `cloud_read`, `metrics_query`, `read_file`) still run for
@@ -160,8 +162,10 @@ the reverse. Both go through the same infra classification and governance.
   `session_summary` record (input/output tokens, estimated cost from each
   provider's configured `cost_input_per_mtok`/`cost_output_per_mtok`, wall
   time) at the end of the run.
-- `init`, `doctor` (now also checks for `pwsh`, `kubectl`, `terraform`/`tofu`,
-  and counts available runbooks), `config`, `run`, `runbooks`, and a test
+- `init`, `doctor` (checks the configured shell, `kubectl`,
+  `terraform`/`tofu`, counts available runbooks, and proves the DevMind
+  token works with one live read-only probe), `config` (prints the
+  effective config with the token redacted), `run`, `runbooks`, and a test
   suite for the safety invariants, including regression tests that lock the
   `ChangeType` mapping to DevMind's actual enum (inventing a value like
   `terraform_destroy` gets rejected with HTTP 400 by the live API).
@@ -178,10 +182,32 @@ loom chat
 `go install` puts the binary in `$(go env GOPATH)/bin` (on Windows,
 `%USERPROFILE%\go\bin`); make sure that directory is on your PATH.
 
+## Connect to DevMind
+
+Every tool call is evaluated by DevMind, so Loom needs a DevMind token.
+DevMind is in early access and tokens are issued on request.
+
+```bash
+export DEVMIND_TOKEN=dvm_...
+loom doctor
+```
+
+`loom doctor` sends one harmless read-only probe and tells you exactly what
+is wrong if it fails: missing token, rejected token (HTTP 401), a token
+bound to a different agent (HTTP 403; set `LOOM_AGENT_ID` to match), or
+DevMind unreachable. The first check after the service has been idle can
+take up to a minute.
+
+`DEVMIND_TOKEN` takes precedence over `governance.token` in
+`loom.config.json`. Prefer the environment variable so the token never sits
+in a file; `loom.config.json` is already in `.gitignore`. Without a working
+token, governance still fails closed: every action becomes `REVIEW`, never
+`ALLOW`.
+
 ## Build from source
 
 Requires Go 1.22 or newer, plus the shell selected in `sre.shell` on PATH:
-PowerShell 7+ (`pwsh`, the default) or `bash`. Native investigation tools additionally need `kubectl`
+`bash` (default on Linux/macOS) or PowerShell 7+ (`pwsh`, default on Windows). Native investigation tools additionally need `kubectl`
 and/or `aws`/`gcloud`/`az` on PATH for the ones you actually use; `loom
 doctor` reports what it finds.
 
@@ -195,6 +221,7 @@ go test ./...
 ```bash
 ./loom init
 export OPENAI_API_KEY=sk-...
+export DEVMIND_TOKEN=dvm_...
 ./loom doctor
 ./loom run --task planning "diseña el plan de migracion del cluster EKS a 1.31"
 ./loom run --task security_review "revisa este cambio de Terraform antes de aplicarlo"
@@ -213,7 +240,8 @@ stdin: una revisión humana necesaria pero imposible de confirmar en CI nunca
 se aprueba automáticamente. Todos esos casos terminan con exit code distinto
 de cero. El ejemplo mínimo en `.github/workflows/loom-example.yml` revisa el
 diff de Terraform de un pull request; configura `OPENAI_API_KEY` y
-`DEVMIND_TOKEN` como secretos antes de activarlo.
+`DEVMIND_TOKEN` como secretos antes de activarlo. Loom lee `DEVMIND_TOKEN`
+directamente del entorno, asi que el token nunca se escribe en un archivo.
 
 To use MCP servers, add them to `loom.config.json`:
 
@@ -330,10 +358,11 @@ See [ROADMAP.md](ROADMAP.md) for the full, ticket-level breakdown (scope,
 files touched, acceptance criteria, dependencies, sizing) of every phase
 below. Summary:
 
-Loom's build order is deliberately Loom-first, DevMind-second: DevMind is
-under active construction and not yet something an SRE should depend on for
-production judgment calls, so Loom is being hardened as a tool on its own
-merits before the two are wired together tightly.
+Loom's build order is deliberately Loom-first: Loom is hardened as a tool on
+its own merits — its local safety net holds by itself — while the deeper
+DevMind integration (MCP transport, shared org policy, server-side audit)
+lands in Phase 3. Defense in depth: neither layer assumes the other is
+there to catch its mistakes.
 
 ### Phase 0 — Done
 Governed execution core: DevMind REST integration, fail-closed policy
@@ -342,8 +371,7 @@ migrations/direct cloud calls, per-task model routing, audit tracing,
 `init`/`doctor`/`config`/`run`/`chat`.
 
 ### Phase 1 — Done (this round)
-Loom re-scoped as an SRE/Platform Engineering tool, independent of DevMind's
-maturity:
+Loom re-scoped as an SRE/Platform Engineering tool that stands on its own:
 - PowerShell (`pwsh`) as the underlying shell, replacing bash/cmd.exe.
 - Native, structured, no-shell investigation tools: `k8s_get`,
   `k8s_describe`, `k8s_logs`, `cloud_read` (with a mutating-verb guard),
@@ -371,15 +399,12 @@ maturity:
   Datadog results the same way. `raw: true` always available as an escape
   hatch. See `ROADMAP.md` §2.4.
 
-### Phase 3 — DevMind integration rework (blocked on DevMind's own maturity)
+### Phase 3 — DevMind integration rework
 - Replace the REST `governance.Engine` implementation with an MCP client
   against DevMind's MCP server (now live). `governance.Engine` is already an
   interface (`EvaluateAction`/`EvaluateChange`); this should be a new
   implementation behind it, not a rewrite of `tools.Registry` or the agent
-  loop — that boundary is the whole reason the interface exists. Doing this
-  before DevMind's own `ChangeType`/decision contract stabilizes would mean
-  hand-copying an unstable contract into Loom's classifier twice; Phase 1's
-  local classification is the more honest interim state.
+  loop — that boundary is the whole reason the interface exists.
 - Shared, org-level policy config, distributed independently of any single
   Loom project checkout.
 - Server-side audit storage (today's `.loom/sessions/*.jsonl` is local-only
@@ -398,8 +423,7 @@ maturity:
   in a pipeline.
 - SSO/RBAC for who can invoke which task types against which environments.
 
-None of Phase 3 or 4 is started. They are listed to make the dependency
-explicit: Loom's local safety net (governance fail-closed, the mutating-verb
-guard in `cloud_read`, blast-radius classification) is designed to hold on
-its own regardless of when DevMind is ready, not to paper over DevMind being
-unreliable today.
+None of Phase 3 or 4 is started. Loom's local safety net (governance
+fail-closed, the mutating-verb guard in `cloud_read`, blast-radius
+classification) is designed to hold on its own as a second layer, not to
+depend on any single control being perfect.
