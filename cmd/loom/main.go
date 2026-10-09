@@ -17,6 +17,9 @@ import (
 	"github.com/mordecaiusm922-create/loom/internal/tui"
 )
 
+// version is set at release time via -ldflags "-X main.version=...".
+var version = "dev"
+
 const usage = `Loom -- runtime gobernado para agentes de SRE / Platform Engineering.
 
 Uso:
@@ -59,7 +62,7 @@ func main() {
 	case "config":
 		cmdConfig()
 	case "version":
-		fmt.Println("loom v0.4.0-sre")
+		fmt.Println("loom " + version)
 	default:
 		fmt.Print(usage)
 		os.Exit(1)
