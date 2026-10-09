@@ -172,6 +172,12 @@ the reverse. Both go through the same infra classification and governance.
 
 ## Install
 
+Prebuilt binaries for Linux, macOS and Windows (amd64 and arm64) are attached to
+every [release](https://github.com/mordecaiusm922-create/loom/releases/latest).
+Download the archive for your platform, extract `loom`, and put it on your PATH.
+
+Or install with Go:
+
 ```bash
 go install github.com/mordecaiusm922-create/loom/cmd/loom@latest
 loom init
@@ -223,25 +229,25 @@ go test ./...
 export OPENAI_API_KEY=sk-...
 export DEVMIND_TOKEN=dvm_...
 ./loom doctor
-./loom run --task planning "diseña el plan de migracion del cluster EKS a 1.31"
-./loom run --task security_review "revisa este cambio de Terraform antes de aplicarlo"
-./loom run --task incident_response "el servicio checkout esta devolviendo 5xx, investiga y proponme una accion"
+./loom run --task planning "plan the EKS cluster upgrade to 1.31"
+./loom run --task security_review "review this Terraform change before it is applied"
+./loom run --task incident_response "checkout is returning 5xx, investigate and propose an action"
 ./loom runbooks
-./loom run --runbook pod-crashloop "namespace checkout, pod checkout-7d9f reiniciando cada 2 min"
-./loom run --dry-run --task security_review "aplica el cambio de terraform en infra/prod"
-./loom run --resume sess-1234 "sigue subiendo el error rate, continua la investigacion"
+./loom run --runbook pod-crashloop "namespace checkout, pod checkout-7d9f restarting every 2 minutes"
+./loom run --dry-run --task security_review "apply the terraform change in infra/prod"
+./loom run --resume sess-1234 "error rate is still climbing, keep investigating"
 ```
 
-## CI no interactivo
+## Non-interactive CI
 
-Usa `--non-interactive` para correr Loom como un check gateado en CI. En este
-modo, `BLOCK` conserva su fallo normal y `REVIEW`/`ESCALATE` abortan sin leer
-stdin: una revisión humana necesaria pero imposible de confirmar en CI nunca
-se aprueba automáticamente. Todos esos casos terminan con exit code distinto
-de cero. El ejemplo mínimo en `.github/workflows/loom-example.yml` revisa el
-diff de Terraform de un pull request; configura `OPENAI_API_KEY` y
-`DEVMIND_TOKEN` como secretos antes de activarlo. Loom lee `DEVMIND_TOKEN`
-directamente del entorno, asi que el token nunca se escribe en un archivo.
+Use `--non-interactive` to run Loom as a gated check in CI. In this mode
+`BLOCK` fails as usual, and `REVIEW`/`ESCALATE` abort without reading stdin:
+a human review that CI cannot confirm is never approved automatically. All of
+these cases exit non-zero. The minimal example in
+`.github/workflows/loom-example.yml` reviews a pull request's Terraform diff;
+set `OPENAI_API_KEY` and `DEVMIND_TOKEN` as repository secrets before enabling
+it. Loom reads `DEVMIND_TOKEN` straight from the environment, so the token is
+never written to a file.
 
 To use MCP servers, add them to `loom.config.json`:
 
