@@ -20,27 +20,27 @@ import (
 // version is set at release time via -ldflags "-X main.version=...".
 var version = "dev"
 
-const usage = `Loom -- runtime gobernado para agentes de SRE / Platform Engineering.
+const usage = `Loom -- a governed runtime for SRE / Platform Engineering agents.
 
-Uso:
-  loom run [--task tipo] [--runbook nombre] [--resume sesion] [--dry-run] [--non-interactive] "<prompt>"  Ejecuta una tarea gobernada
-  loom chat [--dry-run]              TUI interactiva sobre la misma sesion
-  loom runbooks                      Lista los runbooks disponibles
-  loom init                         Crea loom.config.json sin sobrescribir
-  loom doctor                       Comprueba la configuracion local
-  loom config                       Imprime la configuracion efectiva
-  loom version                      Imprime la version
+Usage:
+  loom run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] "<prompt>"  Run a governed task
+  loom chat [--dry-run]              Interactive TUI on the same session
+  loom runbooks                      List the available runbooks
+  loom init                          Create loom.config.json (never overwrites)
+  loom doctor                        Check the local configuration
+  loom config                        Print the effective configuration
+  loom version                       Print the version
 
-Tipos de tarea: trivial_edit, planning, security_review, incident_response.
-Dominio: Terraform/OpenTofu, Kubernetes/Helm, CLIs de cloud (aws/gcloud/az),
-CI/CD, observabilidad (Prometheus/Grafana/Datadog), gestion de incidentes
-y control de acceso (IAM, rotacion de secretos). El shell subyacente es
-bash en Linux/macOS y PowerShell en Windows (cambialo con "sre.shell");
-ademas hay herramientas nativas de solo lectura
+Task types: trivial_edit, planning, security_review, incident_response.
+Domain: Terraform/OpenTofu, Kubernetes/Helm, cloud CLIs (aws/gcloud/az),
+CI/CD, observability (Prometheus/Grafana/Datadog), incident management
+and access control (IAM, secret rotation). The underlying shell is
+bash on Linux/macOS and PowerShell on Windows (change it with "sre.shell");
+there are also read-only native tools
 (k8s_get, k8s_describe, k8s_logs, cloud_read, metrics_query).
-La gobernanza es obligatoria: exporta DEVMIND_TOKEN=dvm_... y verifica con
-loom doctor. Un opt-out local requiere LOOM_UNSAFE_DISABLE_GOVERNANCE=1 de
-forma explicita.
+Governance is mandatory: export DEVMIND_TOKEN=dvm_... and verify with
+loom doctor. A local opt-out requires setting
+LOOM_UNSAFE_DISABLE_GOVERNANCE=1 explicitly.
 `
 
 func main() {
@@ -80,19 +80,19 @@ func cmdRun(args []string) {
 		switch args[i] {
 		case "--task":
 			if i+1 == len(args) {
-				fatal("--task requiere un valor")
+				fatal("--task requires a value")
 			}
 			taskHint = args[i+1]
 			i++
 		case "--runbook":
 			if i+1 == len(args) {
-				fatal("--runbook requiere un valor")
+				fatal("--runbook requires a value")
 			}
 			runbookName = args[i+1]
 			i++
 		case "--resume":
 			if i+1 == len(args) {
-				fatal("--resume requiere un session-id")
+				fatal("--resume requires a session id")
 			}
 			resumeID = args[i+1]
 			i++
@@ -106,7 +106,7 @@ func cmdRun(args []string) {
 	}
 	cfg, err := config.Load("")
 	if err != nil {
-		fatal("cargando config: %v", err)
+		fatal("loading config: %v", err)
 	}
 
 	prompt := strings.Join(promptParts, " ")
@@ -121,21 +121,21 @@ func cmdRun(args []string) {
 		}
 	}
 	if strings.TrimSpace(prompt) == "" {
-		fatal("uso: loom run [--task tipo] [--runbook nombre] [--resume sesion] [--dry-run] [--non-interactive] \"<prompt>\"")
+		fatal("usage: loom run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] \"<prompt>\"")
 	}
 	if resumeID != "" {
 		contextSummary, err := agent.ResumeContext(resumeID)
 		if err != nil {
-			fatal("retomando sesion: %v", err)
+			fatal("resuming session: %v", err)
 		}
-		prompt = contextSummary + "\n\nNuevo contexto del operador:\n" + prompt
+		prompt = contextSummary + "\n\nNew context from the operator:\n" + prompt
 	}
 
 	agentID := agentIDFromEnv()
 	sessionID := agent.NewSessionID()
 	session, err := agent.NewSession(cfg, agentID, sessionID)
 	if err != nil {
-		fatal("iniciando sesion: %v", err)
+		fatal("starting session: %v", err)
 	}
 	defer session.Close()
 	session.SetDryRun(dryRun)
@@ -148,7 +148,7 @@ func cmdRun(args []string) {
 func cmdRunbooks() {
 	cfg, err := config.Load("")
 	if err != nil {
-		fatal("cargando config: %v", err)
+		fatal("loading config: %v", err)
 	}
 	dir := cfg.Sre.RunbooksDir
 	if dir == "" {
@@ -156,13 +156,13 @@ func cmdRunbooks() {
 	}
 	names, err := runbook.List(dir)
 	if err != nil {
-		fatal("listando runbooks en %s: %v", dir, err)
+		fatal("listing runbooks in %s: %v", dir, err)
 	}
 	if len(names) == 0 {
-		fmt.Printf("no hay runbooks en %s\n", dir)
+		fmt.Printf("no runbooks in %s\n", dir)
 		return
 	}
-	fmt.Printf("runbooks disponibles en %s:\n", dir)
+	fmt.Printf("runbooks available in %s:\n", dir)
 	for _, name := range names {
 		rb, err := runbook.Load(dir, name)
 		if err != nil {
@@ -177,13 +177,13 @@ func cmdChat(args []string) {
 	dryRun := false
 	for _, arg := range args {
 		if arg != "--dry-run" {
-			fatal("uso: loom chat [--dry-run]")
+			fatal("usage: loom chat [--dry-run]")
 		}
 		dryRun = true
 	}
 	cfg, err := config.Load("")
 	if err != nil {
-		fatal("cargando config: %v", err)
+		fatal("loading config: %v", err)
 	}
 	agentID := agentIDFromEnv()
 	sessionID := agent.NewSessionID()
@@ -197,17 +197,17 @@ func cmdInit() {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		if os.IsExist(err) {
-			fatal("%s ya existe; no se sobrescribio", path)
+			fatal("%s already exists; not overwritten", path)
 		}
-		fatal("creando config: %v", err)
+		fatal("creating config: %v", err)
 	}
 	defer file.Close()
 	data, err := json.MarshalIndent(config.Default(), "", "  ")
 	if err != nil {
-		fatal("serializando config: %v", err)
+		fatal("serializing config: %v", err)
 	}
 	if _, err := file.Write(append(data, '\n')); err != nil {
-		fatal("escribiendo config: %v", err)
+		fatal("writing config: %v", err)
 	}
 	fmt.Printf("creado %s\n", path)
 }
@@ -215,7 +215,7 @@ func cmdInit() {
 func cmdDoctor() {
 	cfg, err := config.Load("")
 	if err != nil {
-		fatal("config invalida: %v", err)
+		fatal("invalid config: %v", err)
 	}
 	failures := 0
 	fmt.Println("Loom doctor")
@@ -269,7 +269,7 @@ func cmdDoctor() {
 func cmdConfig() {
 	cfg, err := config.Load("")
 	if err != nil {
-		fatal("cargando config: %v", err)
+		fatal("loading config: %v", err)
 	}
 	if cfg.Governance.Token != "" {
 		cfg.Governance.Token = "REDACTED"

@@ -33,19 +33,19 @@ func Load(dir, name string) (Runbook, error) {
 		dir = DefaultDir
 	}
 	if name == "" {
-		return Runbook{}, fmt.Errorf("nombre de runbook vacio")
+		return Runbook{}, fmt.Errorf("empty runbook name")
 	}
 	path := filepath.Join(dir, name+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Runbook{}, fmt.Errorf("runbook %q no encontrado en %s (usa 'loom runbooks' para listar los disponibles)", name, dir)
+			return Runbook{}, fmt.Errorf("runbook %q not found in %s (run 'loom runbooks' to list the available ones)", name, dir)
 		}
 		return Runbook{}, err
 	}
 	var rb Runbook
 	if err := json.Unmarshal(data, &rb); err != nil {
-		return Runbook{}, fmt.Errorf("runbook %q invalido: %w", name, err)
+		return Runbook{}, fmt.Errorf("invalid runbook %q: %w", name, err)
 	}
 	if len(rb.Steps) == 0 {
 		return Runbook{}, fmt.Errorf("runbook %q no declara 'steps'", name)
@@ -84,12 +84,12 @@ func List(dir string) ([]string, error) {
 // back" style tasks).
 func (rb Runbook) ComposePrompt(extra string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Segui el runbook %q como punto de partida (adaptalo a lo que encuentres, no lo repitas ciegamente si la evidencia apunta a otro lado):\n", rb.Title)
+	fmt.Fprintf(&b, "Follow the runbook %q as a starting point (adapt it to what you find; do not repeat it blindly if the evidence points elsewhere):\n", rb.Title)
 	for i, step := range rb.Steps {
 		fmt.Fprintf(&b, "%d. %s\n", i+1, step)
 	}
 	if strings.TrimSpace(extra) != "" {
-		fmt.Fprintf(&b, "\nContexto adicional de quien reporta:\n%s\n", extra)
+		fmt.Fprintf(&b, "\nAdditional context from the reporter:\n%s\n", extra)
 	}
 	return b.String()
 }

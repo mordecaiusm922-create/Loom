@@ -101,7 +101,7 @@ func TestSummarizeK8sJSONInvalidJSONFallsBackToRaw(t *testing.T) {
 
 func TestSummarizeK8sJSONEmptyListSaysSo(t *testing.T) {
 	summary, ok := summarizeK8sJSON("pods", []byte(`{"items": []}`))
-	if !ok || !strings.Contains(summary, "sin resultados") {
+	if !ok || !strings.Contains(summary, "no results") {
 		t.Fatalf("summary=%q ok=%v, want a clear empty-result message", summary, ok)
 	}
 }

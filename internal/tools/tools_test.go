@@ -110,7 +110,7 @@ func TestBlockedActionNeverExecutes(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Block, Why: []string{"policy"}}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
 	_, err := registry.Execute(context.Background(), "powershell", map[string]any{"command": "echo SHOULD_NOT_RUN"}, false)
-	if err == nil || !strings.Contains(err.Error(), "BLOQUEADO") {
+	if err == nil || !strings.Contains(err.Error(), "BLOCKED") {
 		t.Fatalf("err = %v, want blocked error", err)
 	}
 	if engine.actionCalls != 1 {
@@ -147,7 +147,7 @@ func TestDestructiveTerraformRoutesToEvaluateChange(t *testing.T) {
 	if !engine.lastAffectsProd {
 		t.Fatalf("affects_production = false, want true")
 	}
-	if err == nil || !strings.Contains(err.Error(), "cancelada") {
+	if err == nil || !strings.Contains(err.Error(), "cancelled") {
 		t.Fatalf("err = %v, want cancelled (ESCALATE without confirmation)", err)
 	}
 }
@@ -349,7 +349,7 @@ func TestCloudReadRejectsMutatingVerbsBeforeExecution(t *testing.T) {
 		"args":     []any{"ec2", "terminate-instances", "--instance-ids", "i-0123456789"},
 	}, false)
 
-	if err == nil || !strings.Contains(err.Error(), "solo lectura") {
+	if err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("err = %v, want a read-only rejection", err)
 	}
 	if engine.actionCalls != 1 {
@@ -432,7 +432,7 @@ func TestReviewRequiresConfirmation(t *testing.T) {
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
 	registry.SetConfirmation(func(governance.Decision, *governance.EvaluateResponse) bool { return false })
 	_, err := registry.Execute(context.Background(), "powershell", map[string]any{"command": "echo SHOULD_NOT_RUN"}, false)
-	if err == nil || !strings.Contains(err.Error(), "cancelada") {
+	if err == nil || !strings.Contains(err.Error(), "cancelled") {
 		t.Fatalf("err = %v, want cancelled error", err)
 	}
 }
@@ -461,7 +461,7 @@ func TestNonInteractiveReviewNeverExecutesTool(t *testing.T) {
 			}
 
 			_, err := registry.Execute(context.Background(), "requires-review", nil, false)
-			if err == nil || !strings.Contains(err.Error(), "revision humana") || !strings.Contains(err.Error(), "no interactivo") {
+			if err == nil || !strings.Contains(err.Error(), "human review") || !strings.Contains(err.Error(), "non-interactive") {
 				t.Fatalf("err = %v, want a non-interactive human-review error", err)
 			}
 			if confirmationRequested {

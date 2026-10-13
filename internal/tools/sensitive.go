@@ -35,7 +35,7 @@ func sensitivePathReason(path string) string {
 	base := strings.ToLower(filepath.Base(resolved))
 
 	if base == ".env" || (strings.HasPrefix(base, ".env.") && !isEnvTemplate(base)) {
-		return "archivo .env con secretos"
+		return ".env file with secrets"
 	}
 	if sensitiveBasenames[base] || strings.HasPrefix(base, "id_rsa") || strings.HasPrefix(base, "id_ed25519") || strings.HasPrefix(base, "id_ecdsa") {
 		return "credencial o llave privada"
@@ -43,7 +43,7 @@ func sensitivePathReason(path string) string {
 	for _, ext := range sensitiveExtensions {
 		if strings.HasSuffix(base, ext) {
 			if strings.Contains(ext, "tfstate") {
-				return "state de Terraform (contiene secretos en claro); usa `terraform state show <recurso>` o `terraform output`"
+				return "Terraform state (contains plaintext secrets); use `terraform state show <resource>` or `terraform output`"
 			}
 			return "llave o certificado privado"
 		}
@@ -54,13 +54,13 @@ func sensitivePathReason(path string) string {
 		for _, rel := range sensitiveHomePaths {
 			target := homeSlashed + "/" + rel
 			if pathEqualOrUnder(slashed, target) {
-				return "directorio de credenciales (~/" + rel + ")"
+				return "credentials directory (~/" + rel + ")"
 			}
 		}
 	}
 	for _, kubeconfig := range filepath.SplitList(os.Getenv("KUBECONFIG")) {
 		if kubeconfig != "" && pathEqualOrUnder(slashed, filepath.ToSlash(resolvePath(kubeconfig))) {
-			return "kubeconfig (contiene tokens del cluster)"
+			return "kubeconfig (contains cluster tokens)"
 		}
 	}
 	return ""
@@ -99,7 +99,7 @@ func resolvePath(path string) string {
 
 func checkSensitivePath(path string) error {
 	if reason := sensitivePathReason(path); reason != "" {
-		return fmt.Errorf("ruta protegida (%s): Loom no lee ni escribe archivos de credenciales, porque su contenido iria al proveedor del modelo", reason)
+		return fmt.Errorf("protected path (%s): Loom does not read or write credential files, because their content would be sent to the model provider", reason)
 	}
 	return nil
 }

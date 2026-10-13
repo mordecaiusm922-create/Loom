@@ -95,10 +95,10 @@ func (r *Registry) register(tool Tool) { r.tools[tool.Name] = tool }
 // tool with the same name.
 func (r *Registry) Register(tool Tool) error {
 	if tool.Name == "" || tool.Run == nil {
-		return fmt.Errorf("herramienta externa invalida")
+		return fmt.Errorf("invalid external tool")
 	}
 	if _, exists := r.tools[tool.Name]; exists {
-		return fmt.Errorf("la herramienta %q ya esta registrada", tool.Name)
+		return fmt.Errorf("tool %q is already registered", tool.Name)
 	}
 	r.register(tool)
 	return nil
@@ -142,14 +142,14 @@ func isDestructiveCommand(command string) bool {
 func (r *Registry) Execute(ctx context.Context, name string, input map[string]any, declaredProduction bool) (string, error) {
 	tool, ok := r.tools[name]
 	if !ok {
-		return "", fmt.Errorf("herramienta desconocida: %s", name)
+		return "", fmt.Errorf("unknown tool: %s", name)
 	}
 
 	env := ResolveEnvironment(name, input, r.sre)
 	if r.dryRun && tool.IsMutating != nil && tool.IsMutating(input) {
 		event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: "dry-run", Outcome: "dry_run_skipped", Environment: env.Tier}
 		r.emit(event)
-		return fmt.Sprintf("[dry-run] %s no se ejecuto (accion mutante); gobernanza no fue consultada", name), nil
+		return fmt.Sprintf("[dry-run] %s was not run (mutating action); governance was not consulted", name), nil
 	}
 
 	affectsProduction := declaredProduction || env.Tier == config.TierProd
@@ -186,28 +186,28 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	case governance.Block:
 		event.Outcome = "blocked"
 		r.emit(event)
-		return "", fmt.Errorf("BLOQUEADO por DevMind: %s", strings.Join(decision.Why, "; "))
+		return "", fmt.Errorf("BLOCKED by DevMind: %s", strings.Join(decision.Why, "; "))
 	case governance.Escalate, governance.Review:
 		if r.nonInteractive {
 			event.Outcome = "human_review_required"
 			r.emit(event)
-			return "", fmt.Errorf("accion requiere revision humana (%s) y no se pudo confirmar en un entorno no interactivo", decision.DecisionValue)
+			return "", fmt.Errorf("action requires human review (%s) and could not be confirmed in a non-interactive environment", decision.DecisionValue)
 		}
 		if !r.confirm(decision.DecisionValue, decision) {
 			event.Outcome = "cancelled"
 			r.emit(event)
-			return "", fmt.Errorf("accion cancelada por el usuario tras aviso de %s", decision.DecisionValue)
+			return "", fmt.Errorf("action cancelled by the operator after a %s warning", decision.DecisionValue)
 		}
 	case governance.Rewrite:
 		event.Outcome = "rewrite_required"
 		r.emit(event)
-		return "", fmt.Errorf("DevMind requiere reescribir esta accion; Loom no ejecuta REWRITE automaticamente")
+		return "", fmt.Errorf("DevMind requires this action to be rewritten; Loom does not apply REWRITE automatically")
 	case governance.Allow:
 		// continue
 	default:
 		event.Outcome = "invalid_decision"
 		r.emit(event)
-		return "", fmt.Errorf("decision de gobernanza desconocida: %q", decision.DecisionValue)
+		return "", fmt.Errorf("unknown governance decision: %q", decision.DecisionValue)
 	}
 
 	out, runErr := tool.Run(ctx, input)
@@ -241,7 +241,7 @@ func confirmInTerminal(decision governance.Decision, response *governance.Evalua
 	for _, why := range response.Why {
 		fmt.Fprintf(os.Stderr, "  - %s\n", why)
 	}
-	fmt.Fprint(os.Stderr, "Continuar de todos modos? [y/N]: ")
+	fmt.Fprint(os.Stderr, "Continue anyway? [y/N]: ")
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	return strings.TrimSpace(strings.ToLower(line)) == "y"
 }
@@ -265,7 +265,7 @@ func resolvePowerShellBinary() (string, error) {
 			return path, nil
 		}
 	}
-	return "", fmt.Errorf("no se encontro PowerShell (pwsh) en PATH; instala PowerShell 7+ (https://aka.ms/powershell)")
+	return "", fmt.Errorf("PowerShell (pwsh) not found in PATH; install PowerShell 7+ (https://aka.ms/powershell)")
 }
 
 // resolveBashBinary finds bash on PATH.
@@ -281,7 +281,7 @@ func resolveBashBinary() (string, error) {
 		if path, err := exec.LookPath("bash"); err == nil {
 			return path, nil
 		}
-		return "", fmt.Errorf("no se encontro bash en PATH; instala bash o usa \"sre.shell\": \"powershell\"")
+		return "", fmt.Errorf("bash not found in PATH; install bash or set \"sre.shell\": \"powershell\"")
 	}
 	var candidates []string
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
@@ -295,7 +295,7 @@ func resolveBashBinary() (string, error) {
 	if path := pickWindowsBash(candidates, os.Getenv("SystemRoot"), fileExists); path != "" {
 		return path, nil
 	}
-	return "", fmt.Errorf("no se encontro bash (Git Bash) en Windows; System32\\bash.exe es el lanzador de WSL y no se usa. Instala Git for Windows o usa \"sre.shell\": \"powershell\"")
+	return "", fmt.Errorf("bash (Git Bash) not found on Windows; System32\\bash.exe is the WSL launcher and is not used. Install Git for Windows or set \"sre.shell\": \"powershell\"")
 }
 
 // pickWindowsBash returns the first existing candidate that is not the WSL
@@ -338,19 +338,19 @@ func shellTool(shell string) Tool {
 	}
 	return Tool{
 		Name: shell,
-		Description: "Ejecuta un comando de " + label + " (terraform/tofu, kubectl, helm, " +
-			"aws/gcloud/az, scripts de runbook, consultas HTTP a Prometheus/Grafana/Datadog, " +
-			"etc.) y retorna stdout+stderr. Prefiere las " +
-			"herramientas nativas (k8s_get, k8s_describe, k8s_logs, cloud_read, " +
-			"metrics_query) para investigacion de solo lectura; usa " + shell + " cuando " +
-			"necesites algo que esas herramientas no cubren. Cada comando de " +
-			"infraestructura es clasificado y evaluado por DevMind antes de ejecutarse.",
+		Description: "Runs a " + label + " command (terraform/tofu, kubectl, helm, " +
+			"aws/gcloud/az, runbook scripts, HTTP queries to Prometheus/Grafana/Datadog, " +
+			"etc.) and returns stdout+stderr. Prefer the " +
+			"native tools (k8s_get, k8s_describe, k8s_logs, cloud_read, " +
+			"metrics_query) for read-only investigation; use " + shell + " when " +
+			"you need something those tools do not cover. Every infrastructure " +
+			"command is classified and evaluated by DevMind before it runs.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"command": map[string]any{
 					"type":        "string",
-					"description": "El comando de " + label + " completo a ejecutar, tal cual se escribiria en la terminal.",
+					"description": "The full " + label + " command to run, exactly as it would be typed in a terminal.",
 				},
 			},
 			"required": []string{"command"},
@@ -368,7 +368,7 @@ func shellTool(shell string) Tool {
 		Run: func(ctx context.Context, input map[string]any) (string, error) {
 			command, _ := input["command"].(string)
 			if command == "" {
-				return "", fmt.Errorf("falta 'command'")
+				return "", fmt.Errorf("missing 'command'")
 			}
 			bin, err := resolve()
 			if err != nil {
@@ -377,7 +377,7 @@ func shellTool(shell string) Tool {
 			cmd := exec.CommandContext(ctx, bin, argv(command)...)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				return string(out), fmt.Errorf("comando fallo: %w", err)
+				return string(out), fmt.Errorf("command failed: %w", err)
 			}
 			return string(out), nil
 		}}
@@ -386,15 +386,15 @@ func shellTool(shell string) Tool {
 func readFileTool() Tool {
 	return Tool{
 		Name: "read_file",
-		Description: "Lee el contenido de un archivo de texto: manifiestos de " +
-			"Kubernetes, modulos de Terraform, charts de Helm, configs de CI/CD, " +
-			"runbooks, logs exportados, etc.",
+		Description: "Reads a text file: Kubernetes manifests, Terraform modules, " +
+			"Helm charts, CI/CD configs, " +
+			"runbooks, exported logs, etc.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"path": map[string]any{
 					"type":        "string",
-					"description": "Ruta del archivo a leer, relativa o absoluta.",
+					"description": "Path of the file to read, relative or absolute.",
 				},
 			},
 			"required": []string{"path"},
@@ -402,7 +402,7 @@ func readFileTool() Tool {
 		Run: func(ctx context.Context, input map[string]any) (string, error) {
 			path, _ := input["path"].(string)
 			if path == "" {
-				return "", fmt.Errorf("falta 'path'")
+				return "", fmt.Errorf("missing 'path'")
 			}
 			if err := checkSensitivePath(path); err != nil {
 				return "", err
@@ -418,18 +418,18 @@ func readFileTool() Tool {
 func writeFileTool() Tool {
 	return Tool{
 		Name: "write_file",
-		Description: "Escribe contenido en un archivo (manifiestos, modulos de " +
-			"Terraform, values de Helm, runbooks, etc.), sobrescribiendo si existe.",
+		Description: "Writes content to a file (manifests, Terraform modules, " +
+			"Helm values, runbooks, etc.), overwriting it if it exists.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"path": map[string]any{
 					"type":        "string",
-					"description": "Ruta del archivo a escribir, relativa o absoluta.",
+					"description": "Path of the file to write, relative or absolute.",
 				},
 				"content": map[string]any{
 					"type":        "string",
-					"description": "Contenido completo a escribir en el archivo.",
+					"description": "Full content to write to the file.",
 				},
 			},
 			"required": []string{"path", "content"},
@@ -442,7 +442,7 @@ func writeFileTool() Tool {
 			path, _ := input["path"].(string)
 			content, _ := input["content"].(string)
 			if path == "" {
-				return "", fmt.Errorf("falta 'path'")
+				return "", fmt.Errorf("missing 'path'")
 			}
 			if err := checkSensitivePath(path); err != nil {
 				return "", err
@@ -462,26 +462,26 @@ func writeFileTool() Tool {
 func updatePlanTool() Tool {
 	return Tool{
 		Name: "update_plan",
-		Description: "Declara o actualiza el plan de pasos de la tarea actual " +
-			"(ej. los pasos de un runbook de incidente o un cambio de infraestructura). " +
-			"Llamalo antes de cualquier tarea de mas de un paso, y de nuevo cada vez " +
-			"que un paso cambie de estado.",
+		Description: "Declares or updates the step plan for the current task " +
+			"(e.g. the steps of an incident runbook or an infrastructure change). " +
+			"Call it before any task with more than one step, and again every time " +
+			"a step changes status.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"steps": map[string]any{
 					"type":        "array",
-					"description": "Lista ordenada de pasos del plan.",
+					"description": "Ordered list of plan steps.",
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
 							"title": map[string]any{
 								"type":        "string",
-								"description": "Descripcion corta del paso.",
+								"description": "Short description of the step.",
 							},
 							"status": map[string]any{
 								"type":        "string",
-								"description": "Uno de: pending, in_progress, done.",
+								"description": "One of: pending, in_progress, done.",
 								"enum":        []string{"pending", "in_progress", "done"},
 							},
 						},
@@ -494,7 +494,7 @@ func updatePlanTool() Tool {
 		Run: func(ctx context.Context, input map[string]any) (string, error) {
 			steps, _ := input["steps"].([]any)
 			if len(steps) == 0 {
-				return "", fmt.Errorf("falta 'steps'")
+				return "", fmt.Errorf("missing 'steps'")
 			}
 			return fmt.Sprintf("plan actualizado: %d pasos", len(steps)), nil
 		}}
@@ -512,12 +512,12 @@ func updatePlanTool() Tool {
 // runBinary is the shared exec plumbing for the native tools below.
 func runBinary(ctx context.Context, bin string, args ...string) (string, error) {
 	if _, err := exec.LookPath(bin); err != nil {
-		return "", fmt.Errorf("%s no encontrado en PATH", bin)
+		return "", fmt.Errorf("%s not found in PATH", bin)
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("%s fallo: %w", bin, err)
+		return string(out), fmt.Errorf("%s failed: %w", bin, err)
 	}
 	return string(out), nil
 }
@@ -525,28 +525,28 @@ func runBinary(ctx context.Context, bin string, args ...string) (string, error) 
 func k8sGetTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "k8s_get",
-		Description: "Lista recursos de Kubernetes (equivalente a 'kubectl get'). " +
-			"Solo lectura. Cuando 'output' es 'json' y el tipo de recurso es uno de " +
-			"pod/deployment/replicaset/statefulset/daemonset/node/service/event, la " +
-			"salida se condensa a una tabla legible (nombre, estado, reinicios, edad, " +
-			"etc.) en vez del manifiesto completo; usa 'raw: true' para recuperar el " +
-			"JSON completo sin condensar.",
+		Description: "Lists Kubernetes resources (equivalent to 'kubectl get'). " +
+			"Read-only. When 'output' is 'json' and the resource type is one of " +
+			"pod/deployment/replicaset/statefulset/daemonset/node/service/event, the " +
+			"output is condensed to a readable table (name, status, restarts, age, " +
+			"etc.) instead of the full manifest; use 'raw: true' to get the " +
+			"full, uncondensed JSON.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"resource":       map[string]any{"type": "string", "description": "Tipo de recurso, ej. pods, deployments, nodes, events."},
-				"name":           map[string]any{"type": "string", "description": "Nombre especifico del recurso (opcional)."},
-				"namespace":      map[string]any{"type": "string", "description": "Namespace (opcional; vacio usa el namespace por defecto)."},
-				"all_namespaces": map[string]any{"type": "boolean", "description": "Si es true, agrega -A (todos los namespaces)."},
-				"output":         map[string]any{"type": "string", "description": "Formato de salida: wide, json, yaml (opcional)."},
-				"raw":            map[string]any{"type": "boolean", "description": "Si es true, no condensar la salida 'json' -- devolver el manifiesto completo."},
+				"resource":       map[string]any{"type": "string", "description": "Resource type, e.g. pods, deployments, nodes, events."},
+				"name":           map[string]any{"type": "string", "description": "Specific resource name (optional)."},
+				"namespace":      map[string]any{"type": "string", "description": "Namespace (optional; empty uses the default namespace)."},
+				"all_namespaces": map[string]any{"type": "boolean", "description": "If true, adds -A (all namespaces)."},
+				"output":         map[string]any{"type": "string", "description": "Output format: wide, json, yaml (optional)."},
+				"raw":            map[string]any{"type": "boolean", "description": "If true, do not condense 'json' output -- return the full manifest."},
 			},
 			"required": []string{"resource"},
 		},
 		Run: func(ctx context.Context, input map[string]any) (string, error) {
 			resource, _ := input["resource"].(string)
 			if resource == "" {
-				return "", fmt.Errorf("falta 'resource'")
+				return "", fmt.Errorf("missing 'resource'")
 			}
 			args := []string{"get", resource}
 			if name, _ := input["name"].(string); name != "" {
@@ -582,14 +582,14 @@ func k8sGetTool(sre config.SreConfig) Tool {
 func k8sDescribeTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "k8s_describe",
-		Description: "Describe un recurso de Kubernetes (equivalente a 'kubectl describe'), " +
-			"incluye eventos recientes. Solo lectura.",
+		Description: "Describes a Kubernetes resource (equivalent to 'kubectl describe'), " +
+			"including recent events. Read-only.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"resource":  map[string]any{"type": "string", "description": "Tipo de recurso, ej. pod, deployment, node."},
-				"name":      map[string]any{"type": "string", "description": "Nombre del recurso."},
-				"namespace": map[string]any{"type": "string", "description": "Namespace (opcional)."},
+				"resource":  map[string]any{"type": "string", "description": "Resource type, e.g. pod, deployment, node."},
+				"name":      map[string]any{"type": "string", "description": "Resource name."},
+				"namespace": map[string]any{"type": "string", "description": "Namespace (optional)."},
 			},
 			"required": []string{"resource", "name"},
 		},
@@ -597,7 +597,7 @@ func k8sDescribeTool(sre config.SreConfig) Tool {
 			resource, _ := input["resource"].(string)
 			name, _ := input["name"].(string)
 			if resource == "" || name == "" {
-				return "", fmt.Errorf("faltan 'resource' y/o 'name'")
+				return "", fmt.Errorf("missing 'resource' and/or 'name'")
 			}
 			args := []string{"describe", resource, name}
 			if sre.KubeContext != "" {
@@ -613,23 +613,23 @@ func k8sDescribeTool(sre config.SreConfig) Tool {
 func k8sLogsTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name:        "k8s_logs",
-		Description: "Obtiene logs de un pod (equivalente a 'kubectl logs'). Solo lectura.",
+		Description: "Fetches pod logs (equivalent to 'kubectl logs'). Read-only.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"pod":        map[string]any{"type": "string", "description": "Nombre del pod."},
-				"namespace":  map[string]any{"type": "string", "description": "Namespace (opcional)."},
-				"container":  map[string]any{"type": "string", "description": "Contenedor especifico (opcional, para pods multi-contenedor)."},
-				"previous":   map[string]any{"type": "boolean", "description": "Si es true, logs del contenedor anterior (--previous), util tras un crash."},
-				"tail_lines": map[string]any{"type": "integer", "description": "Numero de lineas finales a devolver (opcional)."},
-				"since":      map[string]any{"type": "string", "description": "Ventana de tiempo, ej. '15m', '1h' (opcional)."},
+				"pod":        map[string]any{"type": "string", "description": "Pod name."},
+				"namespace":  map[string]any{"type": "string", "description": "Namespace (optional)."},
+				"container":  map[string]any{"type": "string", "description": "Specific container (optional, for multi-container pods)."},
+				"previous":   map[string]any{"type": "boolean", "description": "If true, logs of the previous container (--previous), useful after a crash."},
+				"tail_lines": map[string]any{"type": "integer", "description": "Number of trailing lines to return (optional)."},
+				"since":      map[string]any{"type": "string", "description": "Time window, e.g. '15m', '1h' (optional)."},
 			},
 			"required": []string{"pod"},
 		},
 		Run: func(ctx context.Context, input map[string]any) (string, error) {
 			pod, _ := input["pod"].(string)
 			if pod == "" {
-				return "", fmt.Errorf("falta 'pod'")
+				return "", fmt.Errorf("missing 'pod'")
 			}
 			args := []string{"logs", pod}
 			if sre.KubeContext != "" {
@@ -704,16 +704,16 @@ func isCloudMutatingCommand(args []string) bool {
 func cloudReadTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "cloud_read",
-		Description: "Ejecuta un comando de solo lectura (list/describe/get/show) contra " +
-			"aws, gcloud, o az. Rechaza en el propio tool cualquier subcomando que " +
-			"parezca mutar estado (create/delete/update/etc.), como defensa adicional " +
-			"a la evaluacion de gobernanza -- no la reemplaza. Para cambios reales usa " +
-			"powershell, que ademas obtiene el blast-radius correcto en gobernanza.",
+		Description: "Runs a read-only command (list/describe/get/show) against " +
+			"aws, gcloud, or az. The tool itself rejects any subcommand that " +
+			"looks like it mutates state (create/delete/update/etc.), as a defense in " +
+			"depth on top of governance -- not a replacement for it. For real changes use " +
+			"the shell tool, which also gets the correct blast radius in governance.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"provider": map[string]any{"type": "string", "description": "aws, gcloud, o az.", "enum": []string{"aws", "gcloud", "az"}},
-				"args":     map[string]any{"type": "array", "description": "Argumentos tal cual se pasarian a la CLI, ej. ['ec2','describe-instances'].", "items": map[string]any{"type": "string"}},
+				"provider": map[string]any{"type": "string", "description": "aws, gcloud, or az.", "enum": []string{"aws", "gcloud", "az"}},
+				"args":     map[string]any{"type": "array", "description": "Arguments exactly as they would be passed to the CLI, e.g. ['ec2','describe-instances'].", "items": map[string]any{"type": "string"}},
 			},
 			"required": []string{"provider", "args"},
 		},
@@ -723,11 +723,11 @@ func cloudReadTool(sre config.SreConfig) Tool {
 				provider = sre.Cloud.Provider
 			}
 			if provider != "aws" && provider != "gcloud" && provider != "az" {
-				return "", fmt.Errorf("'provider' debe ser aws, gcloud, o az")
+				return "", fmt.Errorf("'provider' must be aws, gcloud, or az")
 			}
 			rawArgs, _ := input["args"].([]any)
 			if len(rawArgs) == 0 {
-				return "", fmt.Errorf("falta 'args'")
+				return "", fmt.Errorf("missing 'args'")
 			}
 			args := make([]string, 0, len(rawArgs))
 			for _, a := range rawArgs {
@@ -735,7 +735,7 @@ func cloudReadTool(sre config.SreConfig) Tool {
 				args = append(args, s)
 			}
 			if isCloudMutatingCommand(args) {
-				return "", fmt.Errorf("cloud_read es solo lectura; %v parece un comando de escritura -- usa powershell si de verdad quieres mutar estado (pasara por gobernanza)", args)
+				return "", fmt.Errorf("cloud_read is read-only; %v looks like a write command -- use the shell tool if you really need to change state (it goes through governance)", args)
 			}
 			if sre.Cloud.Profile != "" {
 				switch provider {
@@ -752,18 +752,18 @@ func cloudReadTool(sre config.SreConfig) Tool {
 func metricsQueryTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "metrics_query",
-		Description: "Consulta metricas de observabilidad (Prometheus/Grafana/Datadog) " +
-			"usando los endpoints configurados en loom.config.json (sre.observability). " +
-			"Solo lectura. Las respuestas de tipo vector/scalar (consultas instantaneas) " +
-			"se condensan a una tabla METRIC/VALUE; las de tipo rango/matrix se devuelven " +
-			"completas porque condensarlas perderia la serie temporal. Usa 'raw: true' " +
-			"para recibir siempre el JSON completo de la API.",
+		Description: "Queries observability metrics (Prometheus/Grafana/Datadog) " +
+			"using the endpoints configured in loom.config.json (sre.observability). " +
+			"Read-only. Vector/scalar responses (instant queries) " +
+			"are condensed to a METRIC/VALUE table; range/matrix responses are returned " +
+			"in full because condensing them would lose the time series. Use 'raw: true' " +
+			"to always get the full API JSON.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"system": map[string]any{"type": "string", "description": "prometheus, grafana, o datadog.", "enum": []string{"prometheus", "grafana", "datadog"}},
-				"query":  map[string]any{"type": "string", "description": "Expresion de consulta (PromQL para prometheus/grafana, sintaxis de metric query para datadog)."},
-				"raw":    map[string]any{"type": "boolean", "description": "Si es true, devuelve el JSON completo de la API en vez del resumen tabular."},
+				"system": map[string]any{"type": "string", "description": "prometheus, grafana, or datadog.", "enum": []string{"prometheus", "grafana", "datadog"}},
+				"query":  map[string]any{"type": "string", "description": "Query expression (PromQL for prometheus/grafana, metric query syntax for datadog)."},
+				"raw":    map[string]any{"type": "boolean", "description": "If true, returns the full API JSON instead of the tabular summary."},
 			},
 			"required": []string{"system", "query"},
 		},
@@ -771,13 +771,13 @@ func metricsQueryTool(sre config.SreConfig) Tool {
 			system, _ := input["system"].(string)
 			query, _ := input["query"].(string)
 			if system == "" || query == "" {
-				return "", fmt.Errorf("faltan 'system' y/o 'query'")
+				return "", fmt.Errorf("missing 'system' and/or 'query'")
 			}
 			raw, _ := input["raw"].(bool)
 			switch system {
 			case "prometheus":
 				if sre.Observability.PrometheusURL == "" {
-					return "", fmt.Errorf("sre.observability.prometheus_url no esta configurado")
+					return "", fmt.Errorf("sre.observability.prometheus_url is not set")
 				}
 				url := fmt.Sprintf("%s/api/v1/query?query=%s", strings.TrimRight(sre.Observability.PrometheusURL, "/"), queryEscape(query))
 				body, err := httpGet(ctx, url, nil)
@@ -787,7 +787,7 @@ func metricsQueryTool(sre config.SreConfig) Tool {
 				return formatObservabilityResponse(body, raw, summarizePrometheusResponse), nil
 			case "grafana":
 				if sre.Observability.GrafanaURL == "" {
-					return "", fmt.Errorf("sre.observability.grafana_url no esta configurado")
+					return "", fmt.Errorf("sre.observability.grafana_url is not set")
 				}
 				headers := map[string]string{}
 				if sre.Observability.GrafanaTokenEnv != "" {
@@ -820,7 +820,7 @@ func metricsQueryTool(sre config.SreConfig) Tool {
 				}
 				return formatObservabilityResponse(body, raw, summarizeDatadogResponse), nil
 			default:
-				return "", fmt.Errorf("'system' debe ser prometheus, grafana, o datadog")
+				return "", fmt.Errorf("'system' must be prometheus, grafana, or datadog")
 			}
 		}}
 }
@@ -849,7 +849,7 @@ func httpGet(ctx context.Context, url string, headers map[string]string) ([]byte
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("consulta fallo: %w", err)
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -857,7 +857,7 @@ func httpGet(ctx context.Context, url string, headers map[string]string) ([]byte
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return body, fmt.Errorf("consulta devolvio HTTP %d", resp.StatusCode)
+		return body, fmt.Errorf("query returned HTTP %d", resp.StatusCode)
 	}
 	return body, nil
 }

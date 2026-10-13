@@ -15,12 +15,12 @@ import (
 // new model context window.
 func ResumeContext(sessionID string) (string, error) {
 	if strings.TrimSpace(sessionID) == "" || filepath.Base(sessionID) != sessionID || strings.Contains(sessionID, ".") {
-		return "", fmt.Errorf("session-id invalido")
+		return "", fmt.Errorf("invalid session id")
 	}
 	path := filepath.Join(".loom", "sessions", sessionID+".jsonl")
 	file, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("abriendo sesion %q: %w", sessionID, err)
+		return "", fmt.Errorf("opening session %q: %w", sessionID, err)
 	}
 	defer file.Close()
 
@@ -40,7 +40,7 @@ func ResumeContext(sessionID string) (string, error) {
 		if eventType == "session_summary" {
 			var summary sessionSummaryRecord
 			if json.Unmarshal(scanner.Bytes(), &summary) == nil {
-				summaries = append(summaries, fmt.Sprintf("uso: %d tokens entrada, %d salida; costo estimado USD %.6f; duracion %d ms", summary.InputTokens, summary.OutputTokens, summary.EstimatedCostUSD, summary.DurationMS))
+				summaries = append(summaries, fmt.Sprintf("usage: %d input tokens, %d output; estimated cost USD %.6f; duration %d ms", summary.InputTokens, summary.OutputTokens, summary.EstimatedCostUSD, summary.DurationMS))
 			}
 			continue
 		}
@@ -60,14 +60,14 @@ func ResumeContext(sessionID string) (string, error) {
 		tools = append(tools, fmt.Sprintf("%s: decision=%s, outcome=%s, %s", event.Tool, orUnknown(event.Decision), orUnknown(event.Outcome), execution))
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("leyendo sesion %q: %w", sessionID, err)
+		return "", fmt.Errorf("reading session %q: %w", sessionID, err)
 	}
 	if len(tools) == 0 && len(summaries) == 0 {
-		return "", fmt.Errorf("la sesion %q no contiene eventos utilizables", sessionID)
+		return "", fmt.Errorf("session %q has no usable events", sessionID)
 	}
 
 	var out strings.Builder
-	fmt.Fprintf(&out, "Resumen de la sesion anterior %s:\n", sessionID)
+	fmt.Fprintf(&out, "Summary of the previous session %s:\n", sessionID)
 	if len(tools) > 0 {
 		out.WriteString("Herramientas y decisiones:\n")
 		for _, item := range tools {
@@ -77,7 +77,7 @@ func ResumeContext(sessionID string) (string, error) {
 	for _, summary := range summaries {
 		out.WriteString("- " + summary + "\n")
 	}
-	out.WriteString("Usa este resumen como contexto; valida el estado actual antes de hacer cambios.")
+	out.WriteString("Use this summary as context; verify the current state before making changes.")
 	return out.String(), nil
 }
 
