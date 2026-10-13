@@ -191,3 +191,25 @@ func TestParsePlanStepsHandlesMissingOrWrongTypeGracefully(t *testing.T) {
 		t.Fatalf("expected 0 steps for wrong type, got %d", len(steps))
 	}
 }
+
+func TestNewSessionWithoutTokenUsesTheLocalPolicy(t *testing.T) {
+	chdir(t, t.TempDir())
+	cfg := config.Default() // engine "auto", no token
+	cfg.Governance.Token = ""
+	session, err := NewSession(cfg, "agent", "sess-local-policy")
+	if err != nil {
+		t.Fatalf("NewSession: %v, want the local policy when no DevMind token is set", err)
+	}
+	session.Close()
+}
+
+func TestNewSessionRequiringDevMindWithoutTokenFails(t *testing.T) {
+	chdir(t, t.TempDir())
+	cfg := config.Default()
+	cfg.Governance.Engine = config.EngineDevMind
+	cfg.Governance.Token = ""
+	_, err := NewSession(cfg, "agent", "sess-devmind-no-token")
+	if err == nil || !strings.Contains(err.Error(), config.DevMindTokenEnv) {
+		t.Fatalf("err = %v, want an error telling the operator to set %s", err, config.DevMindTokenEnv)
+	}
+}

@@ -42,8 +42,8 @@
   "mcp_servers": [],
   "governance": {
     "enabled": true,
-    "engine": "devmind",
-    "base_url": "https://devmind-2cej.onrender.com",
+    "engine": "auto",
+    "base_url": "https://devmind-mcp.onrender.com/v1",
     "token": ""
   },
   "sre": {

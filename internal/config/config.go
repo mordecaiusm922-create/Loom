@@ -171,6 +171,39 @@ type GovernanceConfig struct {
 // token. When set it takes precedence over governance.token in the file.
 const DevMindTokenEnv = "DEVMIND_TOKEN"
 
+// Governance engines.
+//
+//	auto     DevMind when a token is configured, otherwise the local policy.
+//	devmind  always DevMind; a missing token is a configuration error.
+//	local    the built-in conservative policy (reads run, changes ask,
+//	         catastrophic commands are blocked); no account needed.
+const (
+	EngineAuto    = "auto"
+	EngineDevMind = "devmind"
+	EngineLocal   = "local"
+)
+
+// DefaultDevMindURL is DevMind's REST API (served under /v1).
+const DefaultDevMindURL = "https://devmind-mcp.onrender.com/v1"
+
+// ResolvedEngine is the engine Loom will actually use: EngineDevMind or
+// EngineLocal. "auto" (and an empty value) picks DevMind only when a token
+// is available, so a first run without an account still works and is
+// still governed.
+func (g GovernanceConfig) ResolvedEngine() string {
+	switch strings.ToLower(strings.TrimSpace(g.Engine)) {
+	case EngineDevMind:
+		return EngineDevMind
+	case EngineLocal:
+		return EngineLocal
+	default:
+		if strings.TrimSpace(g.Token) != "" {
+			return EngineDevMind
+		}
+		return EngineLocal
+	}
+}
+
 // Route is the concrete model selection made for one request.
 type Route struct {
 	Task     string
@@ -191,8 +224,8 @@ func Default() Config {
 	}
 	cfg.Governance = GovernanceConfig{
 		Enabled: true,
-		Engine:  "devmind",
-		BaseURL: "https://devmind-2cej.onrender.com",
+		Engine:  EngineAuto,
+		BaseURL: DefaultDevMindURL,
 	}
 	cfg.Sre.Shell = DefaultShell(runtime.GOOS)
 	return cfg
@@ -219,6 +252,11 @@ func Load(path string) (Config, error) {
 	case ShellPowerShell, ShellBash:
 	default:
 		return Config{}, fmt.Errorf("invalid sre.shell %q: use %q or %q", cfg.Sre.Shell, ShellPowerShell, ShellBash)
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Governance.Engine)) {
+	case "", EngineAuto, EngineDevMind, EngineLocal:
+	default:
+		return Config{}, fmt.Errorf("invalid governance.engine %q: use %q, %q or %q", cfg.Governance.Engine, EngineAuto, EngineDevMind, EngineLocal)
 	}
 	if token := strings.TrimSpace(os.Getenv(DevMindTokenEnv)); token != "" {
 		cfg.Governance.Token = token

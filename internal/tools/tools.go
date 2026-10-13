@@ -179,14 +179,14 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 		decision, err = r.gov.EvaluateAction(ctx, r.agentID, name, "execute", fmt.Sprintf("%v", input), affectsProduction)
 	}
 	if err != nil {
-		return "", fmt.Errorf("error consultando gobernanza: %w", err)
+		return "", fmt.Errorf("governance check failed: %w", err)
 	}
 	event := AuditEvent{Time: time.Now().UTC(), SessionID: r.sessionID, Tool: name, Engine: engineUsed, Decision: decision.DecisionValue, RiskScore: decision.RiskScore, Environment: env.Tier, AuditID: decision.AuditID}
 	switch decision.DecisionValue {
 	case governance.Block:
 		event.Outcome = "blocked"
 		r.emit(event)
-		return "", fmt.Errorf("BLOCKED by DevMind: %s", strings.Join(decision.Why, "; "))
+		return "", fmt.Errorf("BLOCKED by %s: %s", governance.EngineName(r.gov), strings.Join(decision.Why, "; "))
 	case governance.Escalate, governance.Review:
 		if r.nonInteractive {
 			event.Outcome = "human_review_required"
@@ -201,7 +201,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	case governance.Rewrite:
 		event.Outcome = "rewrite_required"
 		r.emit(event)
-		return "", fmt.Errorf("DevMind requires this action to be rewritten; Loom does not apply REWRITE automatically")
+		return "", fmt.Errorf("%s requires this action to be rewritten; Loom does not apply REWRITE automatically", governance.EngineName(r.gov))
 	case governance.Allow:
 		// continue
 	default:

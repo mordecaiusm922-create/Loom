@@ -209,7 +209,7 @@ func cmdInit() {
 	if _, err := file.Write(append(data, '\n')); err != nil {
 		fatal("writing config: %v", err)
 	}
-	fmt.Printf("creado %s\n", path)
+	fmt.Printf("created %s\n", path)
 }
 
 func cmdDoctor() {
@@ -220,13 +220,17 @@ func cmdDoctor() {
 	failures := 0
 	fmt.Println("Loom doctor")
 	fmt.Println("  config: OK")
-	if cfg.Governance.Enabled && cfg.Governance.Engine == "devmind" && cfg.Governance.BaseURL != "" {
-		fmt.Printf("  governance: OK (%s)\n", cfg.Governance.BaseURL)
+	switch {
+	case cfg.Governance.Enabled && cfg.Governance.ResolvedEngine() == config.EngineDevMind:
+		fmt.Printf("  governance: DevMind (%s)\n", cfg.Governance.BaseURL)
 		failures += checkDevMind(cfg)
-	} else if os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1" {
+	case cfg.Governance.Enabled:
+		fmt.Println("  governance: OK -- local policy (reads run, changes ask you first, catastrophic commands are blocked)")
+		fmt.Println("  devmind: not connected -- set DEVMIND_TOKEN for fine-grained verdicts, team approvals and an audit trail")
+	case os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1":
 		fmt.Println("  governance: UNSAFE opt-out enabled")
-	} else {
-		fmt.Println("  governance: ERROR (must be enabled with engine=devmind)")
+	default:
+		fmt.Println("  governance: ERROR (governance.enabled must be true)")
 		failures++
 	}
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
@@ -260,7 +264,7 @@ func cmdDoctor() {
 	fmt.Printf("  kubectl: %s\n", presence(kubeOK))
 	fmt.Printf("  terraform/tofu: %s\n", presence(terraformOK))
 	runbookNames, _ := runbook.List(cfg.Sre.RunbooksDir)
-	fmt.Printf("  runbooks: %d disponibles\n", len(runbookNames))
+	fmt.Printf("  runbooks: %d available\n", len(runbookNames))
 	if failures > 0 {
 		os.Exit(1)
 	}
