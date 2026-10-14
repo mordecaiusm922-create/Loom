@@ -88,13 +88,20 @@ type Session struct {
 // action payload, same redaction rule as AuditEvent itself.
 func NewSession(cfg config.Config, agentID, sessionID string) (*Session, error) {
 	var engine governance.Engine
-	if cfg.Governance.Enabled && cfg.Governance.Engine == "devmind" {
+	switch {
+	case cfg.Governance.Enabled && cfg.Governance.ResolvedEngine() == config.EngineDevMind:
+		if strings.TrimSpace(cfg.Governance.Token) == "" {
+			return nil, fmt.Errorf("governance.engine is %q but no DevMind token is set: export %s=dvm_..., or set governance.engine to %q", config.EngineDevMind, config.DevMindTokenEnv, config.EngineAuto)
+		}
 		engine = governance.NewDevMindEngine(cfg.Governance.BaseURL, cfg.Governance.Token)
-	} else if os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1" {
+	case cfg.Governance.Enabled:
+		engine = governance.LocalEngine{}
+		fmt.Fprintln(os.Stderr, "[loom] governance: local policy (no DevMind token). Reads run, changes ask you first, catastrophic commands are blocked.")
+	case os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1":
 		engine = governance.NoopEngine{}
 		fmt.Fprintln(os.Stderr, "[loom] WARNING: governance disabled by LOOM_UNSAFE_DISABLE_GOVERNANCE=1")
-	} else {
-		return nil, fmt.Errorf("governance is mandatory; set governance.enabled=true and engine=devmind, or use LOOM_UNSAFE_DISABLE_GOVERNANCE=1 for an explicit local opt-out")
+	default:
+		return nil, fmt.Errorf("governance is mandatory; set governance.enabled=true, or use LOOM_UNSAFE_DISABLE_GOVERNANCE=1 for an explicit local opt-out")
 	}
 	registry := tools.NewRegistry(engine, agentID, sessionID, cfg.Sre)
 	session := &Session{cfg: cfg, registry: registry, sessionID: sessionID, onEvent: defaultObserver(sessionID), resolve: resolveProvider}

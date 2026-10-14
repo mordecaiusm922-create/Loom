@@ -60,15 +60,25 @@ func (NoopEngine) EvaluateChange(context.Context, string, string, string, string
 	return &EvaluateResponse{DecisionValue: Allow}, nil
 }
 
+// Name identifies the engine in operator-facing messages.
+func (*DevMindEngine) Name() string { return "DevMind" }
+
+// Name identifies the engine in operator-facing messages.
+func (NoopEngine) Name() string { return "no governance (unsafe opt-out)" }
+
 type DevMindEngine struct {
 	BaseURL string
 	Token   string
 	client  *http.Client
 }
 
+// DefaultDevMindURL is DevMind's REST API, served under /v1 by the same
+// always-on service as its MCP endpoint.
+const DefaultDevMindURL = "https://devmind-mcp.onrender.com/v1"
+
 func NewDevMindEngine(baseURL, token string) *DevMindEngine {
 	if baseURL == "" {
-		baseURL = "https://devmind-2cej.onrender.com"
+		baseURL = DefaultDevMindURL
 	}
 	return &DevMindEngine{BaseURL: strings.TrimRight(baseURL, "/"), Token: token, client: &http.Client{Timeout: 30 * time.Second}}
 }

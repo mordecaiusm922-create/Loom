@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -132,5 +133,42 @@ func TestDevMindTokenFromEnvironment(t *testing.T) {
 	}
 	if noFile.Governance.Token != "dvm_from_env" {
 		t.Fatalf("env must apply with no config file, got %q", noFile.Governance.Token)
+	}
+}
+
+func TestGovernanceEngineResolution(t *testing.T) {
+	cases := []struct {
+		engine, token, want string
+	}{
+		{"auto", "", EngineLocal},
+		{"auto", "dvm_x", EngineDevMind},
+		{"", "", EngineLocal},
+		{"", "dvm_x", EngineDevMind},
+		{"local", "dvm_x", EngineLocal},
+		{"devmind", "", EngineDevMind},
+		{" DevMind ", "dvm_x", EngineDevMind},
+	}
+	for _, c := range cases {
+		got := GovernanceConfig{Enabled: true, Engine: c.engine, Token: c.token}.ResolvedEngine()
+		if got != c.want {
+			t.Errorf("engine=%q token=%q: got %q, want %q", c.engine, c.token, got, c.want)
+		}
+	}
+}
+
+func TestDefaultGovernanceIsAutoOnV1(t *testing.T) {
+	g := Default().Governance
+	if !g.Enabled || g.Engine != EngineAuto || g.BaseURL != DefaultDevMindURL {
+		t.Fatalf("default governance = %+v", g)
+	}
+}
+
+func TestLoadRejectsUnknownGovernanceEngine(t *testing.T) {
+	path := t.TempDir() + "/loom.config.json"
+	if err := os.WriteFile(path, []byte(`{"governance":{"enabled":true,"engine":"opa"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "governance.engine") {
+		t.Fatalf("err = %v, want an invalid governance.engine error", err)
 	}
 }

@@ -23,13 +23,11 @@ rotation). The system prompt enforces this scope: asked for unrelated
 application feature work, Loom says so and redirects instead of improvising
 outside its domain.
 
-The model thinks, Loom acts, and DevMind decides whether each tool action may
-run. DevMind is a deterministic policy engine: the same action always gets
-the same decision, and no LLM sits in the decision path. The model provider
-is replaceable; the policy gate is not accidentally optional. Loom talks to
-DevMind over its REST API today; that is an implementation detail, not a
-contract — DevMind also exposes a remote MCP server, and moving Loom's
-governance client onto it is planned (see Roadmap, Phase 3).
+The model thinks, Loom acts, and a policy gate decides whether each tool
+action may run: a conservative local policy out of the box, or DevMind, a
+deterministic policy engine where the same action always gets the same
+decision and no LLM sits in the decision path. The model provider is
+replaceable; the policy gate is never optional.
 
 The shell underneath Loom is configurable with `sre.shell`. When unset, it
 follows the host OS:
@@ -188,10 +186,22 @@ loom chat
 `go install` puts the binary in `$(go env GOPATH)/bin` (on Windows,
 `%USERPROFILE%\go\bin`); make sure that directory is on your PATH.
 
-## Connect to DevMind
+## Governance: local policy or DevMind
 
-Every tool call is evaluated by DevMind, so Loom needs a DevMind token.
-DevMind is in early access and tokens are issued on request.
+Every tool call is evaluated before it runs. Loom picks the engine
+automatically (`governance.engine: "auto"`, the default):
+
+| | Local policy (no account) | DevMind |
+|---|---|---|
+| When | no `DEVMIND_TOKEN` set | `DEVMIND_TOKEN` set |
+| Read-only tools (`k8s_get`, `k8s_logs`, `cloud_read`, ...) | run | run |
+| Changes (shell, `write_file`, MCP tools) | always ask you first | deterministic verdict: safe changes run, risky ones ask, dangerous ones are blocked |
+| Catastrophic commands (`rm -rf /`, `mkfs`, `curl ... \| sh`, `DROP DATABASE`, ...) | blocked | blocked |
+| Org-wide destructive infra changes | escalated | escalated, with blast-radius and Terraform/Kubernetes semantics |
+| Session risk memory, audit trail, team approvals | no | yes |
+
+You can try Loom right away with the local policy. To connect DevMind
+(early access; [request a token](https://devmind-gamma.vercel.app/#request-access)):
 
 ```bash
 export DEVMIND_TOKEN=dvm_...
@@ -201,14 +211,15 @@ loom doctor
 `loom doctor` sends one harmless read-only probe and tells you exactly what
 is wrong if it fails: missing token, rejected token (HTTP 401), a token
 bound to a different agent (HTTP 403; set `LOOM_AGENT_ID` to match), or
-DevMind unreachable. The first check after the service has been idle can
-take up to a minute.
+DevMind unreachable.
 
 `DEVMIND_TOKEN` takes precedence over `governance.token` in
 `loom.config.json`. Prefer the environment variable so the token never sits
-in a file; `loom.config.json` is already in `.gitignore`. Without a working
-token, governance still fails closed: every action becomes `REVIEW`, never
-`ALLOW`.
+in a file; `loom.config.json` is already in `.gitignore`. Set
+`governance.engine` to `"devmind"` to require DevMind (Loom refuses to start
+without a token) or to `"local"` to always use the local policy. DevMind
+failures fail closed: transient errors are retried, and anything that still
+fails becomes `REVIEW`, never `ALLOW`.
 
 ## Build from source
 
@@ -227,7 +238,7 @@ go test ./...
 ```bash
 ./loom init
 export OPENAI_API_KEY=sk-...
-export DEVMIND_TOKEN=dvm_...
+export DEVMIND_TOKEN=dvm_...   # optional: without it, the local policy governs
 ./loom doctor
 ./loom run --task planning "plan the EKS cluster upgrade to 1.31"
 ./loom run --task security_review "review this Terraform change before it is applied"
@@ -267,14 +278,14 @@ ollama pull qwen2.5-coder:7b
 
 ## Governance contract
 
-`governance.enabled=true` and `governance.engine="devmind"` are the default
-and required runtime configuration. `BLOCK` stops the action; `REVIEW` and
-`ESCALATE` require the user to type `y` unless `loom run --non-interactive`
-is set, in which case they fail closed; `REWRITE` is not executed.
+Governance is always on. `BLOCK` stops the action; `REVIEW` and `ESCALATE`
+require the operator to type `y` unless `loom run --non-interactive` is set,
+in which case they fail closed; `REWRITE` is not executed.
 
-For an intentionally unsafe local experiment only, set both a disabled
-governance config and `LOOM_UNSAFE_DISABLE_GOVERNANCE=1`. Loom emits a warning
-on every such session. This opt-out exists for development, not production.
+For an intentionally unsafe local experiment only, set
+`governance.enabled=false` and `LOOM_UNSAFE_DISABLE_GOVERNANCE=1`. Loom emits
+a warning on every such session. This opt-out exists for development, not
+production.
 
 ## Configuration
 
@@ -306,8 +317,8 @@ on every such session. This opt-out exists for development, not production.
   ],
   "governance": {
     "enabled": true,
-    "engine": "devmind",
-    "base_url": "https://devmind-2cej.onrender.com"
+    "engine": "auto",
+    "base_url": "https://devmind-mcp.onrender.com/v1"
   },
   "sre": {
     "shell": "bash",
@@ -360,76 +371,6 @@ Keyword classification is a heuristic starting point, not a substitute for
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full, ticket-level breakdown (scope,
-files touched, acceptance criteria, dependencies, sizing) of every phase
-below. Summary:
-
-Loom's build order is deliberately Loom-first: Loom is hardened as a tool on
-its own merits — its local safety net holds by itself — while the deeper
-DevMind integration (MCP transport, shared org policy, server-side audit)
-lands in Phase 3. Defense in depth: neither layer assumes the other is
-there to catch its mistakes.
-
-### Phase 0 — Done
-Governed execution core: DevMind REST integration, fail-closed policy
-evaluation, `ChangeType` classification for Terraform/K8s/Helm/IAM/secrets/
-migrations/direct cloud calls, per-task model routing, audit tracing,
-`init`/`doctor`/`config`/`run`/`chat`.
-
-### Phase 1 — Done (this round)
-Loom re-scoped as an SRE/Platform Engineering tool that stands on its own:
-- PowerShell (`pwsh`) as the underlying shell, replacing bash/cmd.exe.
-- Native, structured, no-shell investigation tools: `k8s_get`,
-  `k8s_describe`, `k8s_logs`, `cloud_read` (with a mutating-verb guard),
-  `metrics_query`.
-- First-class `sre` config block (`kube_context`, `cloud.profile`,
-  `observability.*`, `runbooks_dir`).
-- Persisted per-session incident timeline (`.loom/sessions/*.jsonl`).
-- Reusable runbooks (`loom run --runbook`, `loom runbooks`), shipped with
-  two starter examples.
-- System prompt scoped to SRE/Platform work only; `update_plan` tool bug
-  fixed (it was referenced but never registered).
-
-### Phase 2 — Done
-- MCP stdio servers are exposed to the agent loop as first-class governed
-  tools (`mcp_servers` in config), hardened with a per-call timeout, a
-  SIGKILL fallback on close, and per-server degradation (one bad server
-  warns and is skipped, it doesn't block the others or the native tools).
-- `--dry-run` on `run`/`chat`: a mutating call is skipped before governance
-  is even consulted; read-only tools still run for real.
-- `loom run --resume <session-id>` folds a compact summary of a prior
-  session's `.jsonl` timeline into the new prompt.
-- Per-session token/cost/latency accounting, printed and persisted.
-- Structured output: `k8s_get -o json` condenses to a table for common
-  resource kinds; `metrics_query` condenses instant Prometheus/Grafana/
-  Datadog results the same way. `raw: true` always available as an escape
-  hatch. See `ROADMAP.md` §2.4.
-
-### Phase 3 — DevMind integration rework
-- Replace the REST `governance.Engine` implementation with an MCP client
-  against DevMind's MCP server (now live). `governance.Engine` is already an
-  interface (`EvaluateAction`/`EvaluateChange`); this should be a new
-  implementation behind it, not a rewrite of `tools.Registry` or the agent
-  loop — that boundary is the whole reason the interface exists.
-- Shared, org-level policy config, distributed independently of any single
-  Loom project checkout.
-- Server-side audit storage (today's `.loom/sessions/*.jsonl` is local-only
-  by design, but a team needs a shared store DevMind can also write
-  decisions into).
-- Human-approval workflows for `REVIEW`/`ESCALATE` that don't require an
-  operator sitting at that exact terminal (Slack/PagerDuty-style approval,
-  not just the current TTY `y`/`n` prompt).
-
-### Phase 4 — Team/enterprise control plane
-- Multi-agent fleet visibility (which Loom sessions are running where, by
-  whom, against which environment).
-- Org-wide policy authoring UI on top of DevMind, instead of hand-written
-  policy files.
-- GitHub Actions / CI integration for `loom run --task ...` as a gated step
-  in a pipeline.
-- SSO/RBAC for who can invoke which task types against which environments.
-
-None of Phase 3 or 4 is started. Loom's local safety net (governance
-fail-closed, the mutating-verb guard in `cloud_read`, blast-radius
-classification) is designed to hold on its own as a second layer, not to
-depend on any single control being perfect.
+See [ROADMAP.md](ROADMAP.md) for what is shipped and what comes next:
+plan → policy → apply for Terraform/OpenTofu, Kubernetes diffs, approvals
+outside the terminal (Slack) and a project context file.
