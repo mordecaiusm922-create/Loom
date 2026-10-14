@@ -42,7 +42,7 @@ func TestBashInfraCommandUsesInfraGovernance(t *testing.T) {
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{Shell: "bash"})
 
 	_, err := registry.Execute(context.Background(), "bash", map[string]any{"command": "terraform destroy -auto-approve"}, true)
-	if err == nil || !strings.Contains(err.Error(), "BLOQUEADO") {
+	if err == nil || !strings.Contains(err.Error(), "BLOCKED") {
 		t.Fatalf("err = %v, want a DevMind block", err)
 	}
 	if engine.changeCalls != 1 || engine.actionCalls != 0 {

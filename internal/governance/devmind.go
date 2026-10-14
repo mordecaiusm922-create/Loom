@@ -118,10 +118,38 @@ func (d *DevMindEngine) EvaluateChange(ctx context.Context, agentID, changeType,
 	return d.post(ctx, "/evaluate-change", body)
 }
 
+// retryBackoff spaces out retries of transient failures. Hosted DevMind can
+// take tens of seconds to wake from idle; without retries the first action
+// after a quiet period would fail closed to REVIEW for no real reason.
+var retryBackoff = []time.Duration{2 * time.Second, 5 * time.Second}
+
+// post retries transient failures (transport errors and HTTP 502/503/504)
+// and then fails closed: every failure that survives the retries becomes
+// REVIEW, never ALLOW.
 func (d *DevMindEngine) post(ctx context.Context, path string, body []byte) (*EvaluateResponse, error) {
+	for attempt := 0; ; attempt++ {
+		decision, reason, retryable := d.postOnce(ctx, path, body)
+		if decision != nil {
+			return decision, nil
+		}
+		if !retryable || attempt >= len(retryBackoff) {
+			if attempt > 0 {
+				reason = fmt.Sprintf("%s (after %d attempts)", reason, attempt+1)
+			}
+			return failClosed(reason), nil
+		}
+		select {
+		case <-ctx.Done():
+			return failClosed(reason), nil
+		case <-time.After(retryBackoff[attempt]):
+		}
+	}
+}
+
+func (d *DevMindEngine) postOnce(ctx context.Context, path string, body []byte) (decision *EvaluateResponse, reason string, retryable bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(d.BaseURL, "/")+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Sprintf("could not build the DevMind request: %v", err), false
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if d.Token != "" {
@@ -133,28 +161,31 @@ func (d *DevMindEngine) post(ctx context.Context, path string, body []byte) (*Ev
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return failClosed(fmt.Sprintf("no se pudo contactar DevMind: %v", err)), nil
+		return nil, fmt.Sprintf("could not reach DevMind: %v", err), ctx.Err() == nil
 	}
 	defer resp.Body.Close()
-	raw, readErr := io.ReadAll(resp.Body)
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if readErr != nil {
-		return failClosed(fmt.Sprintf("no se pudo leer respuesta de DevMind: %v", readErr)), nil
+		return nil, fmt.Sprintf("could not read the DevMind response: %v", readErr), true
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		reason := fmt.Sprintf("DevMind devolvio HTTP %d", resp.StatusCode)
-		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-			reason += " (token ausente o rechazado: define DEVMIND_TOKEN y corre loom doctor)"
+		reason := fmt.Sprintf("DevMind returned HTTP %d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			reason += " (token missing or rejected: set DEVMIND_TOKEN and run loom doctor)"
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return nil, reason, true
 		}
-		return failClosed(reason), nil
+		return nil, reason, false
 	}
-	var decision EvaluateResponse
-	if err := json.Unmarshal(raw, &decision); err != nil {
-		return failClosed("respuesta invalida de DevMind"), nil
+	var out EvaluateResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, "invalid response from DevMind", false
 	}
-	if !validDecision(decision.DecisionValue) {
-		return failClosed(fmt.Sprintf("decision invalida de DevMind: %q", decision.DecisionValue)), nil
+	if !validDecision(out.DecisionValue) {
+		return nil, fmt.Sprintf("invalid decision from DevMind: %q", out.DecisionValue), false
 	}
-	return &decision, nil
+	return &out, "", false
 }
 
 // ErrNoToken means no DevMind token is configured at all.
@@ -202,7 +233,7 @@ func (d *DevMindEngine) Check(ctx context.Context, agentID string) error {
 	case http.StatusForbidden:
 		return fmt.Errorf("the token is bound to a different agent (HTTP 403): set LOOM_AGENT_ID to the agent it was issued for (now %q)", agentID)
 	case http.StatusServiceUnavailable:
-		return fmt.Errorf("DevMind could not validate the token (HTTP 503): the token may not exist, or the service is unavailable")
+		return fmt.Errorf("DevMind is temporarily unavailable (HTTP 503): it may be waking up; run loom doctor again in a minute")
 	default:
 		return fmt.Errorf("DevMind returned HTTP %d", resp.StatusCode)
 	}
@@ -218,5 +249,5 @@ func validDecision(decision Decision) bool {
 }
 
 func failClosed(reason string) *EvaluateResponse {
-	return &EvaluateResponse{DecisionValue: Review, Why: []string{reason + "; fail-closed a REVIEW"}}
+	return &EvaluateResponse{DecisionValue: Review, Why: []string{reason + "; failed closed to REVIEW"}}
 }

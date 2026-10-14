@@ -110,7 +110,7 @@ func (p *OllamaProvider) Complete(ctx context.Context, req CompletionRequest) (*
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo contactar Ollama en %s: %w", p.BaseURL, err)
+		return nil, fmt.Errorf("could not reach Ollama at %s: %w", p.BaseURL, err)
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
@@ -118,11 +118,11 @@ func (p *OllamaProvider) Complete(ctx context.Context, req CompletionRequest) (*
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("ollama devolvio HTTP %d: %s", resp.StatusCode, string(raw))
+		return nil, fmt.Errorf("ollama returned HTTP %d: %s", resp.StatusCode, string(raw))
 	}
 	var decoded ollamaChatResponse
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, fmt.Errorf("respuesta inesperada de Ollama: %s", string(raw))
+		return nil, fmt.Errorf("unexpected response from Ollama: %s", string(raw))
 	}
 	if decoded.Error != "" {
 		return nil, fmt.Errorf("ollama error: %s", decoded.Error)

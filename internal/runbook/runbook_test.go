@@ -40,7 +40,7 @@ func TestLoadRoundTrips(t *testing.T) {
 func TestLoadMissingRunbookIsAHelpfulError(t *testing.T) {
 	dir := t.TempDir()
 	_, err := Load(dir, "does-not-exist")
-	if err == nil || !strings.Contains(err.Error(), "no encontrado") {
+	if err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("err = %v, want a not-found error mentioning the runbook", err)
 	}
 }

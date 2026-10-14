@@ -205,17 +205,17 @@ func (m mood) eyeColor() lipgloss.Color {
 func (m mood) say() string {
 	switch m {
 	case moodThinking:
-		return "investigando..."
+		return "investigating..."
 	case moodHappy:
-		return "listo. todo verificado."
+		return "done. everything verified."
 	case moodAlert:
-		return "esto necesita tus ojos."
+		return "this needs your eyes."
 	case moodBlocked:
-		return "DevMind lo bloqueo."
+		return "DevMind blocked it."
 	case moodError:
-		return "algo fallo."
+		return "something failed."
 	default:
-		return "de guardia."
+		return "on call."
 	}
 }
 
@@ -267,7 +267,7 @@ func gradient(i, width int) lipgloss.Color {
 // welcome is shown in the transcript area until the first prompt.
 func welcome(m mood, t, width int, sessionID, context string) string {
 	tagline := lipgloss.NewStyle().Foreground(colorGray).Italic(true).
-		Render("el agente de SRE que nunca aplica lo que tu politica no aprobo")
+		Render("the SRE agent that never applies what your policy did not approve")
 	if width < 64 {
 		return m.owl(t) + "\n\n" + headerStyle.Render("loom") + "\n" + tagline
 	}
@@ -276,16 +276,16 @@ func welcome(m mood, t, width int, sessionID, context string) string {
 	banner := lipgloss.JoinHorizontal(lipgloss.Center, m.owl(t), "   ", title)
 	muted := lipgloss.NewStyle().Foreground(colorGray)
 	accent := lipgloss.NewStyle().Foreground(colorCyan)
-	info := muted.Render("gobernado por ") + accent.Render("DevMind") + muted.Render(" · sesion ") + accent.Render(sessionID)
+	info := muted.Render("governed by ") + accent.Render("DevMind") + muted.Render(" · session ") + accent.Render(sessionID)
 	if context != "" {
-		info += muted.Render(" · contexto ") + accent.Render(context)
+		info += muted.Render(" · context ") + accent.Render(context)
 	}
 	tips := []string{
-		muted.Render("prueba:"),
-		"  " + lipgloss.NewStyle().Foreground(colorWhite).Render("por que reinicia el pod checkout en el namespace payments?"),
-		"  " + lipgloss.NewStyle().Foreground(colorWhite).Render("revisa este cambio de terraform antes de aplicarlo"),
+		muted.Render("try:"),
+		"  " + lipgloss.NewStyle().Foreground(colorWhite).Render("why is the checkout pod restarting in the payments namespace?"),
+		"  " + lipgloss.NewStyle().Foreground(colorWhite).Render("review this terraform change before applying it"),
 		"",
-		muted.Render("/clear reinicia la conversacion · ctrl+c sale"),
+		muted.Render("/clear resets the conversation · ctrl+c exits"),
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, banner, "", info, "", strings.Join(tips, "\n"))
 }

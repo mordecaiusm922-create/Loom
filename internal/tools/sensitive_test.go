@@ -79,7 +79,7 @@ func TestReadFileRefusesCredentialsAndNeverReturnsContent(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Allow}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
 	out, err := registry.Execute(context.Background(), "read_file", map[string]any{"path": path}, false)
-	if err == nil || !strings.Contains(err.Error(), "ruta protegida") {
+	if err == nil || !strings.Contains(err.Error(), "protected path") {
 		t.Fatalf("err = %v, want protected-path refusal", err)
 	}
 	if strings.Contains(out, "supersecretvalue") {

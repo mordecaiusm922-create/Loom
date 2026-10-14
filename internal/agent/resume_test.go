@@ -50,7 +50,7 @@ func TestResumeContextSummarizesToolsAndSessionSummary(t *testing.T) {
 	if !strings.Contains(summary, "powershell") || !strings.Contains(summary, "decision=BLOCK") {
 		t.Fatalf("summary missing powershell decision: %s", summary)
 	}
-	if !strings.Contains(summary, "100 tokens entrada") {
+	if !strings.Contains(summary, "100 input tokens") {
 		t.Fatalf("summary missing token usage: %s", summary)
 	}
 }
@@ -69,7 +69,7 @@ func TestResumeContextMissingSessionIsAHelpfulError(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
 	_, err := ResumeContext("does-not-exist")
-	if err == nil || !strings.Contains(err.Error(), "abriendo sesion") {
+	if err == nil || !strings.Contains(err.Error(), "opening session") {
 		t.Fatalf("err = %v, want an open-error mentioning the session", err)
 	}
 }

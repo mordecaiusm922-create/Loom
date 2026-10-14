@@ -109,7 +109,7 @@ func StartStdioServerWithTimeout(timeout time.Duration, command string, args ...
 	}
 	if err := client.initialize(); err != nil {
 		client.abort()
-		return nil, fmt.Errorf("inicializando servidor MCP: %w", err)
+		return nil, fmt.Errorf("initializing MCP server: %w", err)
 	}
 	return client, nil
 }
@@ -136,7 +136,7 @@ func (c *StdioClient) initialize() error {
 		return err
 	}
 	if _, err := c.stdin.Write(append(notification, '\n')); err != nil {
-		return fmt.Errorf("enviando notifications/initialized: %w", err)
+		return fmt.Errorf("sending notifications/initialized: %w", err)
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func (c *StdioClient) call(method string, params any) (json.RawMessage, error) {
 		return nil, err
 	}
 	if _, err := c.stdin.Write(append(line, '\n')); err != nil {
-		return nil, fmt.Errorf("escribiendo a servidor MCP: %w", err)
+		return nil, fmt.Errorf("writing to MCP server: %w", err)
 	}
 
 	type readResult struct {
@@ -177,21 +177,21 @@ func (c *StdioClient) call(method string, params any) (json.RawMessage, error) {
 	select {
 	case res := <-resultCh:
 		if res.err != nil {
-			return nil, fmt.Errorf("leyendo respuesta del servidor MCP: %w", res.err)
+			return nil, fmt.Errorf("reading MCP server response: %w", res.err)
 		}
 		var resp rpcResponse
 		if err := json.Unmarshal(res.line, &resp); err != nil {
-			return nil, fmt.Errorf("respuesta MCP inesperada: %s", string(res.line))
+			return nil, fmt.Errorf("unexpected MCP response: %s", string(res.line))
 		}
 		if resp.Error != nil {
 			return nil, fmt.Errorf("mcp error: %s", resp.Error.Message)
 		}
 		if resp.ID != id {
-			return nil, fmt.Errorf("respuesta MCP para id %d recibida con id %d", id, resp.ID)
+			return nil, fmt.Errorf("MCP response for id %d arrived with id %d", id, resp.ID)
 		}
 		return resp.Result, nil
 	case <-time.After(c.timeout):
-		return nil, fmt.Errorf("el servidor MCP no respondio en %s (metodo %s)", c.timeout, method)
+		return nil, fmt.Errorf("MCP server did not respond within %s (method %s)", c.timeout, method)
 	}
 }
 
@@ -212,7 +212,7 @@ func (c *StdioClient) DiscoverTools() ([]ToolDefinition, error) {
 		Tools []ToolDefinition `json:"tools"`
 	}
 	if err := json.Unmarshal(raw, &response); err != nil {
-		return nil, fmt.Errorf("respuesta tools/list invalida: %w", err)
+		return nil, fmt.Errorf("invalid tools/list response: %w", err)
 	}
 	return response.Tools, nil
 }
@@ -244,7 +244,7 @@ func (c *StdioClient) Close() error {
 			_ = c.cmd.Process.Kill()
 		}
 		<-done // Wait always returns once the process is gone; don't leak the goroutine.
-		return fmt.Errorf("el servidor MCP no salio tras cerrar stdin; se envio SIGKILL")
+		return fmt.Errorf("MCP server did not exit after stdin was closed; sent SIGKILL")
 	}
 }
 

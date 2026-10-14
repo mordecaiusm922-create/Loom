@@ -24,7 +24,7 @@ type AnthropicProvider struct {
 func NewAnthropicProvider(model string) (*AnthropicProvider, error) {
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY no esta configurada")
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY is not set")
 	}
 	if model == "" {
 		model = "claude-sonnet-4-6"
@@ -119,7 +119,7 @@ func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest)
 	}
 	var decoded anthropicResponse
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, fmt.Errorf("respuesta inesperada de Anthropic: %s", string(raw))
+		return nil, fmt.Errorf("unexpected response from Anthropic: %s", string(raw))
 	}
 	if decoded.Error != nil {
 		return nil, fmt.Errorf("anthropic error: %s", decoded.Error.Message)

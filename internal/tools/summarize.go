@@ -75,7 +75,7 @@ func summarizeK8sJSON(resourceKind string, raw []byte) (string, bool) {
 		items = []map[string]any{generic}
 	}
 	if len(items) == 0 {
-		return "(sin resultados)", true
+		return "(no results)", true
 	}
 	header, rows := summarizer(items)
 	return renderTable(header, rows), true
@@ -328,7 +328,7 @@ func summarizePrometheusResponse(raw []byte) (string, bool) {
 		return "", false
 	}
 	if len(parsed.Data.Result) == 0 {
-		return "(sin resultados)", true
+		return "(no results)", true
 	}
 	header := []string{"METRIC", "VALUE"}
 	rows := make([][]string, 0, len(parsed.Data.Result))
@@ -359,12 +359,12 @@ func summarizeDatadogResponse(raw []byte) (string, bool) {
 		return "", false
 	}
 	if len(parsed.Series) == 0 {
-		return "(sin resultados)", true
+		return "(no results)", true
 	}
 	header := []string{"METRIC", "SCOPE", "LATEST"}
 	rows := make([][]string, 0, len(parsed.Series))
 	for _, series := range parsed.Series {
-		latest := "sin datos"
+		latest := "no data"
 		if n := len(series.Pointlist); n > 0 && len(series.Pointlist[n-1]) == 2 {
 			latest = fmt.Sprintf("%.4g", series.Pointlist[n-1][1])
 		}

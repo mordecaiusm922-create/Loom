@@ -218,7 +218,7 @@ func Load(path string) (Config, error) {
 		cfg.Sre.Shell = DefaultShell(runtime.GOOS)
 	case ShellPowerShell, ShellBash:
 	default:
-		return Config{}, fmt.Errorf("sre.shell invalido %q: usa %q o %q", cfg.Sre.Shell, ShellPowerShell, ShellBash)
+		return Config{}, fmt.Errorf("invalid sre.shell %q: use %q or %q", cfg.Sre.Shell, ShellPowerShell, ShellBash)
 	}
 	if token := strings.TrimSpace(os.Getenv(DevMindTokenEnv)); token != "" {
 		cfg.Governance.Token = token

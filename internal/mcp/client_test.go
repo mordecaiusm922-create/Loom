@@ -59,7 +59,7 @@ func TestStartFailsWhenInitializeTimesOut(t *testing.T) {
 		_ = client.Close()
 		t.Fatal("StartStdioServerWithTimeout succeeded when initialize never answered")
 	}
-	if !strings.Contains(err.Error(), "inicializando servidor MCP") || !strings.Contains(err.Error(), "no respondio") {
+	if !strings.Contains(err.Error(), "initializing MCP server") || !strings.Contains(err.Error(), "did not respond") {
 		t.Fatalf("err = %v, want initialize timeout", err)
 	}
 	if elapsed := time.Since(started); elapsed > time.Second {
@@ -99,7 +99,7 @@ sleep 30`
 	if err == nil {
 		t.Fatal("expected a timeout error, got nil")
 	}
-	if !strings.Contains(err.Error(), "no respondio") {
+	if !strings.Contains(err.Error(), "did not respond") {
 		t.Fatalf("err = %v, want a timeout error", err)
 	}
 	if elapsed > 2*time.Second {

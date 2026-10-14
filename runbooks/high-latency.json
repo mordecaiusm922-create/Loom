@@ -1,13 +1,13 @@
 {
-  "title": "Latencia elevada en un servicio",
+  "title": "High latency on a service",
   "task_hint": "incident_response",
   "steps": [
-    "metrics_query en prometheus/datadog para confirmar el sintoma (p50/p95/p99) y desde cuando empezo",
-    "k8s_get pods del servicio para descartar reinicios, pending, o falta de replicas saludables",
-    "metrics_query de CPU/memoria/saturacion de conexiones del servicio y sus dependencias directas",
-    "Revisar (cloud_read o powershell de solo lectura) si hubo un deploy o cambio de config en la ventana relevante",
-    "Distinguir si es el servicio o una dependencia aguas abajo (DB, cache, servicio externo) antes de proponer accion",
-    "Proponer la accion de mitigacion mas segura primero (ej. rollback o scale out) antes de un cambio estructural",
-    "Tras mitigar, metrics_query de nuevo para confirmar que la latencia volvio a rango normal"
+    "metrics_query on prometheus/datadog to confirm the symptom (p50/p95/p99) and when it started",
+    "k8s_get the service's pods to rule out restarts, pending pods, or a shortage of healthy replicas",
+    "metrics_query for CPU/memory/connection saturation of the service and its direct dependencies",
+    "Check (cloud_read or a read-only shell command) whether a deploy or config change happened in the relevant window",
+    "Tell apart the service itself from a downstream dependency (DB, cache, external service) before proposing an action",
+    "Propose the safest mitigation first (e.g. rollback or scale out) before any structural change",
+    "After mitigating, metrics_query again to confirm latency is back in its normal range"
   ]
 }

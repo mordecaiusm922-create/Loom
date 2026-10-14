@@ -139,7 +139,7 @@ func Run(cfg config.Config, agentID, sessionID string, dryRun bool) error {
 	})
 
 	ti := textinput.New()
-	ti.Placeholder = "que investigamos?"
+	ti.Placeholder = "what should we investigate?"
 	ti.Prompt = ""
 	ti.Focus()
 	ti.CharLimit = 2000
@@ -283,7 +283,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if strings.EqualFold(prompt, "/clear") {
 			m.session.ClearHistory()
 			m.plan = nil
-			m.transcript = append(m.transcript, routeLineStyle.Render("-- conversacion reiniciada --"))
+			m.transcript = append(m.transcript, routeLineStyle.Render("-- conversation reset --"))
 			m.viewport.SetContent(m.renderTranscript())
 			m.viewport.GotoBottom()
 			m.input.SetValue("")
@@ -365,7 +365,7 @@ func (m *model) layout() {
 
 func (m *model) View() string {
 	if !m.ready {
-		return "iniciando loom chat..."
+		return "starting loom chat..."
 	}
 
 	header := " " + headerStyle.Render("loom")
@@ -404,7 +404,7 @@ func (m *model) View() string {
 	inputBox := inputBoxStyle.Width(m.width - 2).Render(inputLabel + m.input.View())
 
 	view := lipgloss.JoinVertical(lipgloss.Left, header, body, inputBox,
-		statusBarStyle.Render(" enter enviar · /clear reinicia · ctrl+c salir · sesion "+m.sessionID))
+		statusBarStyle.Render(" enter send · /clear reset · ctrl+c quit · session "+m.sessionID))
 
 	if m.pendingConfirm != nil {
 		return m.renderConfirmOverlay(view)
@@ -420,17 +420,17 @@ func (m *model) renderSidebar() string {
 		b.WriteString(lipgloss.PlaceHorizontal(26, lipgloss.Center, m.mood.owl(m.animT())) + "\n")
 		b.WriteString(lipgloss.PlaceHorizontal(26, lipgloss.Center, sayStyle.Render(m.mood.say())) + "\n\n")
 	}
-	b.WriteString(headerStyle.Render("SESION") + "\n")
-	fmt.Fprintf(&b, "tarea: %s\n", orDash(m.lastTask))
+	b.WriteString(headerStyle.Render("SESSION") + "\n")
+	fmt.Fprintf(&b, "task: %s\n", orDash(m.lastTask))
 	fmt.Fprintf(&b, "provider: %s\n", orDash(m.lastProvider))
-	fmt.Fprintf(&b, "acciones: %d\n", m.toolCalls)
+	fmt.Fprintf(&b, "actions: %d\n", m.toolCalls)
 	if m.lastDecision != "" {
-		fmt.Fprintf(&b, "ultima decision: %s\n", decisionStyle(m.lastDecision).Render(fmt.Sprintf("%s (%.1f)", m.lastDecision, m.lastRisk)))
+		fmt.Fprintf(&b, "last decision: %s\n", decisionStyle(m.lastDecision).Render(fmt.Sprintf("%s (%.1f)", m.lastDecision, m.lastRisk)))
 	}
 	b.WriteString("\n")
 	b.WriteString(planTitleStyle.Render("PLAN") + "\n")
 	if len(m.plan) == 0 {
-		b.WriteString(statusBarStyle.Render("(sin plan todavia)") + "\n")
+		b.WriteString(statusBarStyle.Render("(no plan yet)") + "\n")
 	}
 	for i, step := range m.plan {
 		mark, style := "[ ]", planPendingStyle
@@ -442,7 +442,7 @@ func (m *model) renderSidebar() string {
 		}
 		fmt.Fprintf(&b, "%s %d. %s\n", style.Render(mark), i+1, step.Title)
 	}
-	b.WriteString("\n" + statusBarStyle.Render(fmt.Sprintf("%d herramientas gobernadas", len(m.session.ToolNames()))))
+	b.WriteString("\n" + statusBarStyle.Render(fmt.Sprintf("%d governed tools", len(m.session.ToolNames()))))
 	// Same height as the transcript box: an unbounded sidebar (a long plan)
 	// used to push the whole layout taller than the terminal.
 	// Wrap first (sidebar content is 26 wide), then cut to the box height.
@@ -466,8 +466,8 @@ func (m *model) renderConfirmOverlay(base string) string {
 	for _, why := range req.response.Why {
 		fmt.Fprintf(&b, "• %s\n", why)
 	}
-	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render("continuar de todos modos?") + "  " +
-		decisionStyle("ALLOW").Render("[y] si") + "  " + decisionStyle("BLOCK").Render("[n] no"))
+	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render("continue anyway?") + "  " +
+		decisionStyle("ALLOW").Render("[y] yes") + "  " + decisionStyle("BLOCK").Render("[n] no"))
 	owl := m.mood.owl(m.animT()) // the alert mood is set when the modal opens
 	card := lipgloss.JoinHorizontal(lipgloss.Center, owl, "   ", b.String())
 	overlay := modalStyle.Render(card)
