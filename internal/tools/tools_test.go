@@ -373,44 +373,108 @@ func TestCloudReadAllowsDescribeVerb(t *testing.T) {
 	}
 }
 
-// TestCloudMutatingCheckAllowsCommonReadCommands is the regression test for
-// the substring matcher that rejected everyday reads: "--output" contains
-// "put", "--format" contains "rm", "describe-addresses" contains "add",
-// "list-attached-role-policies" contains "attach".
-func TestCloudMutatingCheckAllowsCommonReadCommands(t *testing.T) {
-	reads := [][]string{
-		{"ec2", "describe-instances", "--output", "json"},
-		{"compute", "instances", "list", "--format=json"},
-		{"ec2", "describe-addresses"},
-		{"iam", "list-attached-role-policies", "--role-name", "ci"},
-		{"sts", "get-caller-identity"},
-		{"logs", "filter-log-events", "--log-group-name", "/aws/eks/prod/cluster"},
-		{"vm", "list", "--output", "table"},
+// TestCloudReadOnlyAllowsCommonReads: everyday reads must keep working,
+// including the ones an earlier substring matcher wrongly rejected
+// ("--output" contains "put", "describe-addresses" contains "add").
+func TestCloudReadOnlyAllowsCommonReads(t *testing.T) {
+	reads := []struct {
+		provider string
+		args     []string
+	}{
+		{"aws", []string{"ec2", "describe-instances", "--output", "json"}},
+		{"aws", []string{"ec2", "describe-addresses"}},
+		{"aws", []string{"iam", "list-attached-role-policies", "--role-name", "ci"}},
+		{"aws", []string{"sts", "get-caller-identity"}},
+		{"aws", []string{"logs", "filter-log-events", "--log-group-name", "/aws/eks/prod/cluster"}},
+		{"aws", []string{"s3", "ls", "s3://bucket"}},
+		{"aws", []string{"--region", "us-east-1", "eks", "describe-cluster", "--name", "prod"}},
+		{"gcloud", []string{"compute", "instances", "list", "--format=json"}},
+		{"gcloud", []string{"compute", "instances", "describe", "web-1", "--zone", "us-central1-a"}},
+		{"gcloud", []string{"projects", "get-iam-policy", "my-project"}},
+		{"gcloud", []string{"--project", "p", "container", "clusters", "list"}},
+		{"az", []string{"vm", "list", "--output", "table"}},
+		{"az", []string{"vm", "show", "-n", "web-1", "-g", "prod"}},
+		{"az", []string{"account", "show"}},
 	}
-	for _, args := range reads {
-		if isCloudMutatingCommand(args) {
-			t.Fatalf("%v rejected as mutating, want allowed", args)
+	for _, c := range reads {
+		if !isCloudReadOnlyCommand(c.provider, c.args) {
+			t.Fatalf("%s %v rejected, want allowed as a read", c.provider, c.args)
 		}
 	}
 }
 
-func TestCloudMutatingCheckStillRejectsWrites(t *testing.T) {
-	writes := [][]string{
-		{"ec2", "terminate-instances", "--instance-ids", "i-1"},
-		{"secretsmanager", "put-secret-value", "--secret-id", "x"},
-		{"rds", "delete-db-instance", "--db-instance-identifier", "prod"},
-		{"ecr", "batch-delete-image", "--repository-name", "app"},
-		{"ec2", "run-instances", "--image-id", "ami-1"},
-		{"s3", "rm", "s3://bucket/key"},
-		{"s3", "cp", "local.txt", "s3://bucket/key"},
-		{"compute", "instances", "delete", "web-1"},
-		{"projects", "set-iam-policy", "p", "policy.json"},
-		{"EC2", "Terminate-Instances"},
+// TestCloudReadOnlyRejectsWritesIncludingUnlistedVerbs: the check is an
+// allowlist, so a mutating verb nobody thought to list is still refused.
+func TestCloudReadOnlyRejectsWritesIncludingUnlistedVerbs(t *testing.T) {
+	writes := []struct {
+		provider string
+		args     []string
+	}{
+		{"az", []string{"vm", "deallocate", "-n", "web-1", "-g", "prod"}},
+		{"az", []string{"vm", "redeploy", "-n", "web-1", "-g", "prod"}},
+		{"az", []string{"group", "delete", "-n", "prod"}},
+		{"aws", []string{"s3", "rb", "s3://bucket", "--force"}},
+		{"aws", []string{"s3", "rm", "s3://bucket/key"}},
+		{"aws", []string{"ec2", "terminate-instances", "--instance-ids", "i-1"}},
+		{"aws", []string{"rds", "delete-db-instance", "--db-instance-identifier", "prod"}},
+		{"aws", []string{"EC2", "Terminate-Instances"}},
+		{"gcloud", []string{"compute", "instances", "suspend", "web-1"}},
+		{"gcloud", []string{"sql", "instances", "patch", "prod", "--tier", "db-f1-micro"}},
+		{"gcloud", []string{"compute", "instances", "delete", "list"}},
+		{"gcloud", []string{"projects", "set-iam-policy", "p", "policy.json"}},
+		{"aws", []string{"ec2", "frobnicate-instances"}},
+		{"az", []string{"vm"}},
+		{"aws", nil},
+		{"unknown", []string{"vm", "list"}},
 	}
-	for _, args := range writes {
-		if !isCloudMutatingCommand(args) {
-			t.Fatalf("%v allowed, want rejected as mutating", args)
+	for _, c := range writes {
+		if isCloudReadOnlyCommand(c.provider, c.args) {
+			t.Fatalf("%s %v allowed, want rejected", c.provider, c.args)
 		}
+	}
+}
+
+// TestCloudReadOnlyRejectsReadsThatReturnSecrets: these only read, but
+// their output is secret material that must not reach the model via
+// cloud_read.
+func TestCloudReadOnlyRejectsReadsThatReturnSecrets(t *testing.T) {
+	secrets := []struct {
+		provider string
+		args     []string
+	}{
+		{"aws", []string{"secretsmanager", "get-secret-value", "--secret-id", "db"}},
+		{"aws", []string{"ssm", "get-parameter", "--name", "/db/password", "--with-decryption"}},
+		{"aws", []string{"ssm", "get-parameters-by-path", "--path", "/db", "--with-decryption"}},
+		{"aws", []string{"ecr", "get-login-password"}},
+		{"aws", []string{"sts", "get-session-token"}},
+		{"az", []string{"keyvault", "secret", "show", "--vault-name", "v", "-n", "db"}},
+		{"az", []string{"storage", "account", "keys", "list", "-n", "acct"}},
+		{"az", []string{"storage", "account", "show-connection-string", "-n", "acct"}},
+		{"gcloud", []string{"auth", "print-access-token"}},
+		{"gcloud", []string{"secrets", "versions", "access", "latest", "--secret", "db"}},
+	}
+	for _, c := range secrets {
+		if isCloudReadOnlyCommand(c.provider, c.args) {
+			t.Fatalf("%s %v allowed, want rejected: it returns secret material", c.provider, c.args)
+		}
+	}
+	// Without --with-decryption, ssm get-parameter returns no plaintext secret.
+	if !isCloudReadOnlyCommand("aws", []string{"ssm", "get-parameter", "--name", "/app/region"}) {
+		t.Fatal("ssm get-parameter without --with-decryption rejected, want allowed")
+	}
+}
+
+func TestCloudReadRejectsUnlistedMutatingVerbBeforeExecution(t *testing.T) {
+	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Allow}}
+	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
+
+	_, err := registry.Execute(context.Background(), "cloud_read", map[string]any{
+		"provider": "az",
+		"args":     []any{"vm", "deallocate", "-n", "web-1", "-g", "prod"},
+	}, false)
+
+	if err == nil || !strings.Contains(err.Error(), "read-only") {
+		t.Fatalf("err = %v, want a read-only rejection", err)
 	}
 }
 

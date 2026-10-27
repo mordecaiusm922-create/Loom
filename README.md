@@ -13,6 +13,18 @@
 
 ![REVIEW: a production change waits for a human](docs/screenshots/review.png)
 
+## Try it in two minutes
+
+```bash
+go install github.com/mordecaiusm922-create/loom/cmd/loom@latest   # or grab a binary from Releases
+loom init                        # writes loom.config.json (owner-only permissions)
+export OPENAI_API_KEY=sk-...     # or point loom.config.json at Anthropic or a local Ollama model
+loom doctor                      # checks your shell, kubectl/terraform and the policy engine
+loom chat                        # ask it to investigate something; every change asks you first
+```
+
+No account needed: the built-in local policy blocks catastrophic commands and asks before any change. Tried it? [Open an issue](https://github.com/mordecaiusm922-create/loom/issues/new) — even "this confused me" helps.
+
 Loom is a governed execution runtime for SRE / Platform Engineering agents.
 
 It is not a general-purpose coding agent. Its domain is infrastructure and
@@ -64,10 +76,12 @@ the reverse. Both go through the same infra classification and governance.
     etc.) instead of the full manifest; pass `raw: true` to get the
     manifest back. Unrecognized kinds fall back to kubectl's own JSON
     unchanged.
-  - `cloud_read` — read-only `aws`/`gcloud`/`az` calls. Rejects any argument
-    that looks like a mutating verb (`create`, `delete`, `terminate-*`,
-    `put-*`, …) inside the tool itself, in addition to (not instead of) the
-    governance check every call still goes through. Output is passed
+  - `cloud_read` — read-only `aws`/`gcloud`/`az` calls. The tool only runs operations it recognizes as reads, and refuses everything else, including verbs it has never seen:
+    - aws: `describe-*`, `list-*`, `get-*`, `filter-*`, and `s3 ls`;
+    - gcloud: `list`, `describe`;
+    - az: `list`, `show`.
+
+    It also refuses reads that return secrets. All of this happens inside the tool, in addition to (not instead of) the governance check every call still goes through. Output is passed
     through as-is: aws/gcloud/az response shapes vary too much per
     subcommand to normalize generically and safely.
   - `metrics_query` — queries Prometheus, Grafana, or Datadog using the
@@ -106,13 +120,11 @@ the reverse. Both go through the same infra classification and governance.
   including the `sre.kube_context` the native `k8s_*` tools inject; a
   whole-word keyword heuristic is only the fallback. An infrastructure
   change whose target cannot be resolved is evaluated as production.
-- **Secrets never reach the model.** `read_file`/`write_file` refuse
-  credential files (`~/.aws/credentials`, kubeconfig, `.env*`, `*.pem`,
-  `*.key`, `~/.ssh`, `*.tfstate`, ...), resolving `~`, relative paths and
-  symlinks first. Every tool output is redacted (cloud keys, JWTs, tokens,
-  URL credentials, `password=...`, Kubernetes Secret `data:`) and capped
-  at `sre.max_tool_output_bytes` (default 30000, head and tail kept)
-  before it is sent to the provider.
+- **Secrets are kept away from the model, best effort.**
+  - `read_file` and `write_file` refuse credential files (`~/.aws/credentials`, kubeconfig, `.env*`, `*.pem`, `*.key`, `~/.ssh`, `*.tfstate`, ...). Paths are resolved first: `~`, relative paths and symlinks.
+  - `cloud_read` refuses reads that return secret material, such as `secretsmanager get-secret-value` or `keyvault secret show`.
+  - Every tool output is capped at `sre.max_tool_output_bytes` (default 30000; head and tail are kept) before it is sent to the provider.
+  - Every tool output also goes through pattern-based redaction, which catches cloud keys, JWTs, tokens, URL credentials, `password=...` and Kubernetes Secret `data:`. Patterns cannot recognize every possible credential format, so do not rely on redaction alone. Run Loom with credentials scoped to what the task needs.
 - `loom chat` keeps the conversation across turns; `/clear` resets it.
 - Session IDs are `sess-<UTC timestamp>-<random>`, one `.jsonl` timeline per
   session (never appended to), and each record carries DevMind's
@@ -134,7 +146,7 @@ the reverse. Both go through the same infra classification and governance.
 - **`--dry-run` rehearsal mode**, on both `loom run` and `loom chat`. A
   mutating tool call (the shell tool, `write_file`, or any MCP tool without an
   explicit `readOnlyHint` annotation) is skipped *before governance is even
-  consulted* and reported back as `[dry-run] <tool> no se ejecuto`. Read-only
+  consulted* and reported back as `[dry-run] <tool> was not run`. Read-only
   tools (`k8s_get`, `cloud_read`, `metrics_query`, `read_file`) still run for
   real, so the model can actually investigate while rehearsing a runbook or
   a risky change. Any new mutating tool must declare `Tool.IsMutating`, or it

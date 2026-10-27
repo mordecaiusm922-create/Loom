@@ -194,22 +194,33 @@ func cmdChat(args []string) {
 
 func cmdInit() {
 	path := "loom.config.json"
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
+	if err := writeDefaultConfig(path); err != nil {
 		if os.IsExist(err) {
 			fatal("%s already exists; not overwritten", path)
 		}
 		fatal("creating config: %v", err)
 	}
+	fmt.Printf("created %s\n", path)
+}
+
+// configFileMode keeps loom.config.json readable only by its owner: it may
+// hold a DevMind token (prefer DEVMIND_TOKEN) or provider settings.
+const configFileMode = 0o600
+
+// writeDefaultConfig creates path with the default configuration and never
+// overwrites an existing file.
+func writeDefaultConfig(path string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, configFileMode)
+	if err != nil {
+		return err
+	}
 	defer file.Close()
 	data, err := json.MarshalIndent(config.Default(), "", "  ")
 	if err != nil {
-		fatal("serializing config: %v", err)
+		return err
 	}
-	if _, err := file.Write(append(data, '\n')); err != nil {
-		fatal("writing config: %v", err)
-	}
-	fmt.Printf("created %s\n", path)
+	_, err = file.Write(append(data, '\n'))
+	return err
 }
 
 func cmdDoctor() {
