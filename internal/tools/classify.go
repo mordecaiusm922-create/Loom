@@ -166,7 +166,8 @@ func classifyArgv(argv []string, depth int) (string, bool) {
 
 func classifyCloud(bin string, args []string) (string, bool) {
 	service := firstPositional(args, cloudValueFlags)
-	mutating := isCloudMutatingCommand(args)
+	// Anything that is not a recognized read counts as a possible change.
+	mutating := !isCloudReadOnlyCommand(bin, args)
 	switch {
 	case bin == "aws" && service == "iam" && mutating,
 		bin == "gcloud" && service == "iam" && mutating,

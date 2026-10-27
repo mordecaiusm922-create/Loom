@@ -654,49 +654,124 @@ func k8sLogsTool(sre config.SreConfig) Tool {
 		}}
 }
 
-// cloudMutatingVerbs is a defense-in-depth blocklist: cloud_read is
-// documented and schema'd as read-only, but a model can still try to pass
-// a mutating subcommand. This check runs BEFORE governance ever sees the
-// call, so a mutating attempt never reaches DevMind mislabeled as a read.
-// It is not a substitute for governance -- it only prevents this specific
-// tool from being used to bypass the intent it declares.
-var cloudMutatingVerbs = map[string]bool{
-	"create": true, "delete": true, "remove": true, "rm": true, "terminate": true,
-	"put": true, "update": true, "set": true, "add": true, "attach": true,
-	"detach": true, "modify": true, "rotate": true, "apply": true,
-	"associate": true, "disassociate": true, "revoke": true, "grant": true,
-	"run": true, "start": true, "stop": true, "reboot": true, "restart": true,
-	"deploy": true, "purge": true, "drain": true, "cordon": true, "scale": true,
-	"patch": true, "replace": true, "upgrade": true, "uninstall": true,
-	"install": true, "destroy": true, "taint": true, "cp": true, "mv": true,
-	"sync": true, "copy": true, "invoke": true, "restore": true, "import": true,
-	"enable": true, "disable": true, "reset": true, "resize": true,
-	"cancel": true, "send": true, "publish": true, "release": true,
-	"allocate": true, "register": true, "deregister": true, "authorize": true,
-	"tag": true, "untag": true, "ssh": true, "exec": true, "execute": true,
-	"write": true,
+// cloud_read is documented and schema'd to the model as read-only, and the
+// local policy approves it without asking. So the tool itself only runs
+// commands it recognizes as reads, per provider, and refuses everything
+// else -- an unknown verb is rejected, not assumed safe. This runs BEFORE
+// the CLI is invoked; it never replaces governance, which still evaluates
+// every call. Anything it refuses can still be run through the shell tool,
+// where governance sees it as a possible change.
+
+// awsReadPrefixes are the AWS CLI operation prefixes that only read.
+var awsReadPrefixes = []string{"describe-", "list-", "get-", "lookup-", "search-", "batch-get-", "filter-"}
+
+// awsSecretReads return credentials or secret material even though they
+// are reads: their output must not be fed to the model through cloud_read.
+var awsSecretReads = map[string]bool{
+	"get-secret-value": true, "batch-get-secret-value": true,
+	"get-session-token": true, "get-federation-token": true,
+	"get-login-password": true, "get-authorization-token": true,
+	"get-token": true, "get-role-credentials": true,
+	"get-credentials-for-identity": true,
 }
 
-// isCloudMutatingCommand checks subcommand tokens only. Flags (anything
-// starting with "-") are skipped, and each token is split on "-" and matched
-// segment by segment against cloudMutatingVerbs. A substring match over
-// every argument (the previous implementation) rejected the most common read
-// commands in the field: "--output" contains "put", "--format" contains
-// "rm", "describe-addresses" contains "add", "list-attached-role-policies"
-// contains "attach". Segment matching still catches hyphenated compounds
-// such as "terminate-instances", "delete-db-instance" and
-// "batch-delete-image". A flag value that happens to be a verb (e.g. a
-// bucket named "delete-me") is still rejected -- that errs toward refusal.
-func isCloudMutatingCommand(args []string) bool {
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			continue
+// cloudReadVerbs are the gcloud / az command verbs that only read.
+var cloudReadVerbs = map[string]map[string]bool{
+	"gcloud": {"list": true, "describe": true, "get-iam-policy": true, "read": true},
+	"az":     {"list": true, "show": true},
+}
+
+// cloudMutatingHints guard one ambiguity of the verb-position rule: a
+// resource that happens to be named like a read verb ("gcloud compute
+// instances delete list"). They are a second check on top of the read
+// allowlist, never the decision on their own.
+var cloudMutatingHints = map[string]bool{
+	"create": true, "delete": true, "remove": true, "update": true, "patch": true,
+	"set": true, "add": true, "start": true, "stop": true, "restart": true,
+	"reset": true, "resize": true, "suspend": true, "resume": true, "deploy": true,
+	"deallocate": true, "redeploy": true, "import": true, "export": true,
+	"move": true, "restore": true, "cancel": true, "enable": true, "disable": true,
+	"attach": true, "detach": true, "ssh": true, "scp": true, "rm": true, "cp": true,
+}
+
+// azSecretReads are az command paths whose output is secret material.
+var azSecretReads = []string{
+	"keyvault secret show", "keyvault secret download", "keys list",
+	"show-connection-string", "list-connection-strings", "list-keys",
+	"credential show", "get-credentials",
+}
+
+// cloudCommandPath returns the command words of a cloud CLI invocation:
+// leading global flags are skipped (with their value when they take one),
+// then every word up to the first flag is collected. "aws --region x ec2
+// describe-instances --output json" -> [ec2 describe-instances].
+func cloudCommandPath(args []string) []string {
+	i := 0
+	for i < len(args) && strings.HasPrefix(args[i], "-") {
+		if !strings.Contains(args[i], "=") && cloudValueFlags[args[i]] {
+			i++
 		}
-		for _, segment := range strings.Split(strings.ToLower(arg), "-") {
-			if cloudMutatingVerbs[segment] {
+		i++
+	}
+	var path []string
+	for ; i < len(args) && !strings.HasPrefix(args[i], "-"); i++ {
+		path = append(path, strings.ToLower(args[i]))
+	}
+	return path
+}
+
+// isCloudReadOnlyCommand reports whether args (without the binary) is a
+// command cloud_read recognizes as a pure read for provider. Anything it
+// does not recognize returns false.
+func isCloudReadOnlyCommand(provider string, args []string) bool {
+	path := cloudCommandPath(args)
+	if len(path) < 2 {
+		return false
+	}
+	switch provider {
+	case "aws":
+		service, op := path[0], path[1]
+		if service == "s3" {
+			return op == "ls"
+		}
+		if awsSecretReads[op] {
+			return false
+		}
+		if service == "ssm" && strings.HasPrefix(op, "get-parameter") && containsAny(args, "--with-decryption") {
+			return false
+		}
+		for _, prefix := range awsReadPrefixes {
+			if strings.HasPrefix(op, prefix) {
 				return true
 			}
 		}
+		return false
+	case "gcloud", "az":
+		joined := " " + strings.Join(path, " ") + " "
+		if provider == "az" {
+			for _, secret := range azSecretReads {
+				if strings.Contains(joined, " "+secret+" ") {
+					return false
+				}
+			}
+		}
+		verbs := cloudReadVerbs[provider]
+		verbAt := -1
+		switch {
+		case verbs[path[len(path)-1]]:
+			verbAt = len(path) - 1
+		case len(path) >= 3 && verbs[path[len(path)-2]]:
+			// "gcloud compute instances describe web-1": verb, then one resource.
+			verbAt = len(path) - 2
+		default:
+			return false
+		}
+		for _, word := range path[:verbAt] {
+			if cloudMutatingHints[word] {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
@@ -705,8 +780,9 @@ func cloudReadTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "cloud_read",
 		Description: "Runs a read-only command (list/describe/get/show) against " +
-			"aws, gcloud, or az. The tool itself rejects any subcommand that " +
-			"looks like it mutates state (create/delete/update/etc.), as a defense in " +
+			"aws, gcloud, or az. The tool itself only runs operations it recognizes " +
+			"as reads (aws describe-*/list-*/get-*, gcloud list/describe, az list/show) and " +
+			"refuses everything else, including reads that return secrets, as a defense in " +
 			"depth on top of governance -- not a replacement for it. For real changes use " +
 			"the shell tool, which also gets the correct blast radius in governance.",
 		InputSchema: map[string]any{
@@ -734,8 +810,8 @@ func cloudReadTool(sre config.SreConfig) Tool {
 				s, _ := a.(string)
 				args = append(args, s)
 			}
-			if isCloudMutatingCommand(args) {
-				return "", fmt.Errorf("cloud_read is read-only; %v looks like a write command -- use the shell tool if you really need to change state (it goes through governance)", args)
+			if !isCloudReadOnlyCommand(provider, args) {
+				return "", fmt.Errorf("cloud_read is read-only and only runs known read operations (describe/list/get/show), not %v -- use the shell tool instead, which goes through governance as a possible change", args)
 			}
 			if sre.Cloud.Profile != "" {
 				switch provider {
