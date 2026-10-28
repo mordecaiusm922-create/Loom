@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -94,28 +93,25 @@ func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest)
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/messages", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.APIKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
 	client := p.client
 	if client == nil {
 		client = &http.Client{Timeout: 120 * time.Second}
 	}
-	resp, err := client.Do(httpReq)
+	status, raw, attempts, err := doWithRetry(ctx, client, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/messages", bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("x-api-key", p.APIKey)
+		httpReq.Header.Set("anthropic-version", "2023-06-01")
+		return httpReq, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("anthropic returned HTTP %d: %s", resp.StatusCode, string(raw))
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("anthropic returned HTTP %d%s: %s", status, attemptsSuffix(attempts), string(raw))
 	}
 	var decoded anthropicResponse
 	if err := json.Unmarshal(raw, &decoded); err != nil {

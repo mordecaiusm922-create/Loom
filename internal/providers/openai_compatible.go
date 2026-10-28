@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -155,34 +154,31 @@ func (p *OpenAICompatibleProvider) Complete(ctx context.Context, req CompletionR
 		return nil, err
 	}
 
-	httpReq, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		strings.TrimRight(p.BaseURL, "/")+"/chat/completions",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if p.APIKeyEnv != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+os.Getenv(p.APIKeyEnv))
-	}
 	client := p.client
 	if client == nil {
 		client = &http.Client{Timeout: 120 * time.Second}
 	}
-	resp, err := client.Do(httpReq)
+	status, raw, attempts, err := doWithRetry(ctx, client, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodPost,
+			strings.TrimRight(p.BaseURL, "/")+"/chat/completions",
+			bytes.NewReader(body),
+		)
+		if err != nil {
+			return nil, err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		if p.APIKeyEnv != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+os.Getenv(p.APIKeyEnv))
+		}
+		return httpReq, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("OpenAI-compatible provider returned HTTP %d: %s", resp.StatusCode, string(raw))
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("OpenAI-compatible provider returned HTTP %d%s: %s", status, attemptsSuffix(attempts), string(raw))
 	}
 
 	var decoded openAIResponse
