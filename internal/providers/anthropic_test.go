@@ -4,7 +4,7 @@ import "testing"
 
 func TestEncodeAnthropicMessagesPreservesToolProtocol(t *testing.T) {
 	messages := []Message{
-		{Role: "user", Content: "lee el archivo"},
+		{Role: "user", Content: "read the file"},
 		{Role: "assistant", Content: "Lo leo.", ToolCalls: []ToolCall{{ID: "call-1", Name: "read_file", Input: map[string]any{"path": "README.md"}}}},
 		{Role: "tool", ToolCallID: "call-1", ToolName: "read_file", Content: "hola"},
 	}

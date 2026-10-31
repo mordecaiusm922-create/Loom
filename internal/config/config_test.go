@@ -9,15 +9,22 @@ import (
 
 func TestRouteForPromptPrioritizesRisk(t *testing.T) {
 	cfg := Default()
-	route := cfg.RouteForPrompt("borra la base de datos de produccion", "")
+	route := cfg.RouteForPrompt("drop the production database", "")
 	if route.Task != "security_review" || route.Provider != "anthropic" {
 		t.Fatalf("route = %#v, want security_review through anthropic", route)
 	}
 }
 
+func TestRouteForPromptRecognizesNonEnglishSynonyms(t *testing.T) {
+	cfg := Default()
+	if route := cfg.RouteForPrompt("borrar la base de datos de produccion", ""); route.Task != "security_review" {
+		t.Fatalf("route = %#v, want security_review", route)
+	}
+}
+
 func TestRouteForPromptAcceptsExplicitTask(t *testing.T) {
 	cfg := Default()
-	route := cfg.RouteForPrompt("haz un plan de despliegue", "trivial_edit")
+	route := cfg.RouteForPrompt("write a deployment plan", "trivial_edit")
 	if route.Task != "trivial_edit" || route.Provider != "ollama" {
 		t.Fatalf("route = %#v, want explicit local route", route)
 	}
@@ -27,7 +34,7 @@ func TestRouteForPromptAcceptsCustomProviderID(t *testing.T) {
 	cfg := Default()
 	cfg.CustomProviders = []CustomProviderConfig{{ID: "groq", BaseURL: "https://api.groq.com/openai/v1"}}
 	cfg.Routing = []RoutingRule{{Task: "planning", Provider: "groq"}}
-	route := cfg.RouteForPrompt("haz un plan", "")
+	route := cfg.RouteForPrompt("make a plan", "")
 	if route.Provider != "groq" {
 		t.Fatalf("route = %#v, want groq", route)
 	}

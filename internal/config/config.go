@@ -294,6 +294,9 @@ func (c Config) RouteForPrompt(prompt, taskHint string) Route {
 	return Route{Task: task, Provider: c.ProviderFor(task), Reason: reason}
 }
 
+// classify routes a prompt by keyword. The lists include non-English
+// synonyms (Spanish, e.g. "incidente", "borrar") so prompts in other
+// languages route the same way.
 func classify(prompt string) (string, string) {
 	lower := strings.ToLower(prompt)
 	incidentWords := []string{
