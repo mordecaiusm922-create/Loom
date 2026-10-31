@@ -1,9 +1,6 @@
-// Package mcp implementa un cliente mínimo del Model Context Protocol
-// sobre stdio. Esto es deliberadamente un subconjunto del spec --
-// suficiente para listar y llamar herramientas de un servidor MCP
-// local (ej. `python devmind_server.py`) -- no una implementación
-// completa de streamable-http/SSE, que es el siguiente paso natural
-// para conectar contra devmind-mcp.onrender.com directamente.
+// Package mcp is a minimal Model Context Protocol client over stdio. It is
+// deliberately a subset of the spec -- enough to list and call the tools of
+// a local MCP server -- not a full streamable-http/SSE implementation.
 package mcp
 
 import (
@@ -51,8 +48,8 @@ type rpcNotification struct {
 	Params  any    `json:"params,omitempty"`
 }
 
-// StdioClient lanza un servidor MCP como subproceso y habla JSON-RPC
-// línea por línea sobre su stdin/stdout.
+// StdioClient starts an MCP server as a subprocess and speaks
+// line-delimited JSON-RPC over its stdin/stdout.
 type StdioClient struct {
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
@@ -195,7 +192,7 @@ func (c *StdioClient) call(method string, params any) (json.RawMessage, error) {
 	}
 }
 
-// ListTools llama al método estándar "tools/list".
+// ListTools calls the standard "tools/list" method.
 func (c *StdioClient) ListTools() (json.RawMessage, error) {
 	return c.call("tools/list", nil)
 }
@@ -217,7 +214,7 @@ func (c *StdioClient) DiscoverTools() ([]ToolDefinition, error) {
 	return response.Tools, nil
 }
 
-// CallTool llama a "tools/call" con el nombre y argumentos dados.
+// CallTool calls "tools/call" with the given name and arguments.
 func (c *StdioClient) CallTool(name string, args map[string]any) (json.RawMessage, error) {
 	return c.call("tools/call", map[string]any{
 		"name":      name,

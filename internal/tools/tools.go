@@ -272,8 +272,8 @@ func resolvePowerShellBinary() (string, error) {
 //
 // On Windows, %SystemRoot%\System32\bash.exe is the WSL launcher, which
 // usually comes first on PATH and fails outright when no WSL distribution
-// is installed ("El subsistema de Windows para Linux no tiene
-// distribuciones instaladas"). It is skipped in favor of a real bash such
+// is installed (on a Spanish-language Windows the message reads "El
+// subsistema de Windows para Linux no tiene distribuciones instaladas"). It is skipped in favor of a real bash such
 // as Git Bash, including Git's default install locations when Git's bin
 // directory is not on PATH.
 func resolveBashBinary() (string, error) {
@@ -450,15 +450,14 @@ func writeFileTool() Tool {
 			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("escrito: %s (%d bytes)", path, len(content)), nil
+			return fmt.Sprintf("wrote %s (%d bytes)", path, len(content)), nil
 		}}
 }
 
-// updatePlanTool declares/actualiza el plan de pasos de una tarea de
-// operacion (ej. un runbook de incidente). No ejecuta nada por si mismo --
-// el loop del agente (internal/agent) intercepta la llamada por nombre para
-// emitir un EventPlan; el Run aqui solo confirma que el tool existe y
-// devuelve un ack, para que el registro de auditoria tenga una entrada.
+// updatePlanTool declares or updates the step plan of an operations task
+// (e.g. an incident runbook). It runs nothing by itself: the agent loop
+// (internal/agent) intercepts the call by name to emit an EventPlan; Run
+// only acknowledges it, so the audit log still gets an entry.
 func updatePlanTool() Tool {
 	return Tool{
 		Name: "update_plan",

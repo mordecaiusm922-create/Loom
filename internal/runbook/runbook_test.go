@@ -17,16 +17,16 @@ func writeRunbook(t *testing.T, dir, name, content string) {
 func TestLoadRoundTrips(t *testing.T) {
 	dir := t.TempDir()
 	writeRunbook(t, dir, "pod-crashloop", `{
-		"title": "Pod en CrashLoopBackOff",
+		"title": "Pod in CrashLoopBackOff",
 		"task_hint": "incident_response",
-		"steps": ["k8s_describe del pod", "k8s_logs --previous", "revisar el ultimo deploy"]
+		"steps": ["k8s_describe the pod", "k8s_logs --previous", "check the last deploy"]
 	}`)
 
 	rb, err := Load(dir, "pod-crashloop")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if rb.Title != "Pod en CrashLoopBackOff" {
+	if rb.Title != "Pod in CrashLoopBackOff" {
 		t.Fatalf("Title = %q", rb.Title)
 	}
 	if rb.TaskHint != "incident_response" {

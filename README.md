@@ -18,7 +18,8 @@
 ```bash
 go install github.com/mordecaiusm922-create/loom/cmd/loom@latest   # or grab a binary from Releases
 loom init                        # writes loom.config.json (owner-only permissions)
-export OPENAI_API_KEY=sk-...     # or point loom.config.json at Anthropic or a local Ollama model
+export ANTHROPIC_API_KEY=sk-ant-...  # the config from `loom init` uses Anthropic; for OpenAI, Gemini,
+                                    # Groq or a local Ollama model, see Configuration below
 loom doctor                      # checks your shell, kubectl/terraform and the policy engine
 loom chat                        # ask it to investigate something; every change asks you first
 ```
@@ -363,6 +364,8 @@ To use Groq, Together, Fireworks, Mistral, DeepSeek, OpenRouter, vLLM,
 llama.cpp server, or LM Studio, set its `id`, `base_url`, `model`, and (when
 required) `api_key_env`; route a task to that ID. There is no legacy
 `providers.openai` field.
+Google Gemini works the same way with `base_url`
+`https://generativelanguage.googleapis.com/v1beta/openai`.
 
 A reasonable split for an SRE team: route `trivial_edit` to a fast/cheap
 model, `planning` and `incident_response` to a fast tool-capable model, and

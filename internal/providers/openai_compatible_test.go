@@ -37,7 +37,7 @@ func TestOpenAICompatibleProviderToolCalls(t *testing.T) {
   "choices": [{
     "finish_reason": "tool_calls",
     "message": {
-      "content": "Leyendo el archivo.",
+      "content": "Reading the file.",
       "tool_calls": [{
         "id": "call-1",
         "type": "function",
@@ -57,7 +57,7 @@ func TestOpenAICompatibleProviderToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Text != "Leyendo el archivo." || len(response.ToolCalls) != 1 {
+	if response.Text != "Reading the file." || len(response.ToolCalls) != 1 {
 		t.Fatalf("response = %#v", response)
 	}
 	call := response.ToolCalls[0]

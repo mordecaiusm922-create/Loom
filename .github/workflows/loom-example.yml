@@ -29,5 +29,5 @@ jobs:
         run: |
           DIFF="$(git diff --unified=0 "origin/${{ github.base_ref }}"...HEAD -- '*.tf')"
           test -n "$DIFF"
-          ./loom run --task security_review --non-interactive "Revisa este diff de Terraform y solicita una accion solo si es imprescindible:
+          ./loom run --task security_review --non-interactive "Review this Terraform diff and request an action only if it is strictly necessary:
           $DIFF"

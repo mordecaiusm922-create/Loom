@@ -91,7 +91,7 @@ func TestDumpScreens(t *testing.T) {
 	for _, e := range []agent.Event{
 		{Type: agent.EventRoute, Task: "security_review", Provider: "anthropic"},
 		{Type: agent.EventToolResult, Tool: "bash", Engine: "infra", Decision: governance.Block, RiskScore: 9.8, Outcome: "blocked"},
-		{Type: agent.EventText, Text: "DevMind bloqueo `kubectl delete namespace payments` en produccion (blast radius: org). No voy a reintentar por otra via; si es necesario, hace falta un break-glass con justificacion."},
+		{Type: agent.EventText, Text: "Policy blocked `kubectl delete namespace payments` on production (blast radius: org). I will not retry it another way; if it is really needed, it requires a justified break-glass."},
 	} {
 		m.applyEvent(e)
 	}
