@@ -3,16 +3,42 @@
 [![ci](https://github.com/mordecaiusm922-create/grantline/actions/workflows/ci.yml/badge.svg)](https://github.com/mordecaiusm922-create/grantline/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**Plan-scoped access for AI agents in the cloud: agents propose, a deterministic policy reviews, and only the reviewed plan runs.**
+**Deploy AI agents into your infrastructure workflows, and they only touch what you approved.**
 
 > Grantline was called **Loom** until v0.5.x. Existing `loom.config.json` files and `.loom/` sessions are still read; rename them when convenient.
 
-Grantline is an open-source agent for SRE, platform and cloud security teams.
-It investigates with read-only tools, proposes infrastructure changes, and
-runs nothing until a policy engine returns a verdict. Where it is going
-(see the [roadmap](ROADMAP.md)): the reviewed plan itself becomes the
-credential, so an apply can only touch what was approved, enforced by the
-cloud provider rather than by the agent.
+Grantline is the open-source harness SRE, DevOps, Platform Engineering and
+Cloud Security teams use to run AI agents on their infrastructure. The harness
+is everything around the model: infrastructure-native tools, the context of
+your environments, a deterministic policy gate on every action, and an audit
+trail. The model is replaceable; the harness is the product. It is not a
+general-purpose coding agent.
+
+Today you run Grantline from your terminal or a CI job: it investigates with
+read-only tools, proposes changes, and runs nothing until the policy returns
+a verdict.
+
+**Where it is going** ([roadmap](ROADMAP.md)), not available yet: each team
+defines its own agents in a file and deploys them where it works (terminal,
+GitHub Actions, Kubernetes). A spec can only narrow what an agent may do,
+and an unattended agent never approves its own changes.
+
+```yaml
+# agents/tf-change.yaml (planned format)
+name: tf-change
+role: devops                 # sre | devops | platform | cloudsec
+workflow: change             # plan -> review -> apply
+trigger: pull_request
+environments: [staging]      # prod only when listed explicitly
+tools: [cloud_read, k8s_get, terraform]
+policy:
+  review_in: [prod]          # adds restrictions, never relaxes the base policy
+output: [plan_file, pr_comment]
+```
+
+Later, the reviewed plan itself becomes the credential: an apply runs with
+short-lived cloud credentials limited to that plan, enforced by the cloud
+provider rather than by the agent.
 
 ## Try it in two minutes
 
@@ -27,7 +53,7 @@ grantline chat                       # ask it to investigate something; every ch
 
 No account needed: the built-in local policy blocks catastrophic commands and asks before any change. Tried it? [Open an issue](https://github.com/mordecaiusm922-create/grantline/issues/new) — even "this confused me" helps.
 
-Grantline is a governed execution runtime for SRE / Platform Engineering agents.
+Grantline is a governed agent harness for SRE, DevOps, Platform Engineering and Cloud Security.
 
 It is not a general-purpose coding agent. Its domain is infrastructure and
 platform operations: Terraform/OpenTofu, Kubernetes/Helm, cloud CLIs

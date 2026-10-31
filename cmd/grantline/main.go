@@ -20,7 +20,7 @@ import (
 // version is set at release time via -ldflags "-X main.version=...".
 var version = "dev"
 
-const usage = `Grantline -- a governed runtime for SRE / Platform Engineering agents.
+const usage = `Grantline -- the agent harness for SRE, DevOps, Platform Engineering and Cloud Security.
 
 Usage:
   grantline run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] "<prompt>"  Run a governed task

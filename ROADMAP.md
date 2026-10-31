@@ -1,8 +1,9 @@
 # Grantline roadmap
 
-Grantline (formerly Loom) is an open-source agent for SRE, platform and
-cloud security teams. It never executes an infrastructure action without a
-policy verdict, and it is heading towards plan-scoped cloud access: the
+Grantline (formerly Loom) is the open-source harness SRE, DevOps, Platform
+Engineering and Cloud Security teams use to deploy AI agents on their
+infrastructure. No agent executes an infrastructure action without a policy
+verdict, and the project is heading towards plan-scoped cloud access: the
 reviewed plan becomes the credential. This page says what is shipped, what
 is being worked on now, the bet being validated, what might come next, and
 what Grantline will not do.
@@ -20,8 +21,8 @@ describing what you run today and where it hurts.
 
 ## Now
 
-Work in progress. Goal: someone who has never seen Grantline installs it and
-reaches a first policy verdict on their own, without help.
+Work in progress, in order. Goal: a team installs Grantline on its own,
+reaches a first policy verdict, and then deploys its first agent.
 
 1. **First run works without guessing.**
    Done when: the README quickstart sets the same API key that `grantline init`
@@ -44,6 +45,24 @@ reaches a first policy verdict on their own, without help.
    changes (one line per action with its verdict, risk and rule), approval
    takes an explicit `yes`, and the README screenshots and landing page
    match it.
+6. **Agent specs.** Teams define their own agents in `agents/<name>.yaml`
+   (role, workflow, trigger, environments, tools, policy, output).
+   Done when: `grantline agents new|validate|ls|run` work; a spec can only
+   narrow the tools, environments and policy of the base configuration
+   (anything else is rejected); prod is reachable only when listed
+   explicitly; and an unattended agent never approves a REVIEW, it leaves
+   the plan pending for a person.
+7. **The change workflow.** plan → review → apply, the first workflow an
+   agent can run.
+   Done when: the plan lists one line per resource with its verdict, risk
+   and IAM findings (wildcard actions or resources, `iam:PassRole` without a
+   service condition, public exposure); it is saved with its sha256; and
+   `grantline apply` refuses a plan whose checksum changed.
+8. **Deploying agents to GitHub Actions.**
+   Done when: `grantline deploy agents/<name>.yaml --target github-actions`
+   writes a workflow the team reviews and commits, triggered by pull
+   requests or a schedule, that posts the plan as a pull request comment
+   and only references secrets through `${{ secrets.* }}`.
 
 ## The bet: plan-scoped cloud credentials (validating)
 
@@ -130,10 +149,28 @@ rule above is met.
   Problem: the first version covers AWS only.
   Done when: the same apply flow mints scoped, short-lived credentials on
   GCP and Azure, with the limits of each provider documented.
-- **Plan comments on pull requests.**
-  Problem: reviewers do not see the policy verdict where they review.
-  Done when: in CI, Grantline posts one comment per pull request with the
-  verdict for each changed resource and updates it on new pushes.
+- **Workspace awareness.**
+  Problem: teams describe by hand what their repository already says.
+  Done when: `grantline init` detects Terraform/OpenTofu, Terragrunt, Helm,
+  Kustomize, Argo CD/Flux, CI workflows, runbooks, kube contexts and cloud
+  profiles, proposes environments with their tier, and writes nothing
+  without confirmation.
+- **The audit workflow (Cloud Security).**
+  Problem: finding risky IAM and public exposure means stitching together
+  several tools.
+  Done when: a read-only agent produces a findings report (Markdown and
+  JSON) with severity and evidence, and cannot run a mutating action.
+- **The incident workflow (SRE on-call).**
+  Problem: the timeline and the postmortem are rebuilt by hand after every
+  incident.
+  Done when: an agent runs triage from a symptom or an alert, proposes
+  mitigations through REVIEW, and writes a timeline and postmortem draft
+  from the session log.
+- **Deploying agents to Kubernetes.**
+  Problem: some agents must run next to the cluster or react to alerts.
+  Done when: `grantline deploy --target k8s` writes a CronJob or Deployment
+  with a minimal ServiceAccount and RBAC, and agents can be triggered by an
+  Alertmanager webhook.
 
 ## Later
 
