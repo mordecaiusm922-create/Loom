@@ -38,14 +38,14 @@ func sensitivePathReason(path string) string {
 		return ".env file with secrets"
 	}
 	if sensitiveBasenames[base] || strings.HasPrefix(base, "id_rsa") || strings.HasPrefix(base, "id_ed25519") || strings.HasPrefix(base, "id_ecdsa") {
-		return "credencial o llave privada"
+		return "credential or private key"
 	}
 	for _, ext := range sensitiveExtensions {
 		if strings.HasSuffix(base, ext) {
 			if strings.Contains(ext, "tfstate") {
 				return "Terraform state (contains plaintext secrets); use `terraform state show <resource>` or `terraform output`"
 			}
-			return "llave o certificado privado"
+			return "private key or certificate"
 		}
 	}
 	slashed := filepath.ToSlash(resolved)
