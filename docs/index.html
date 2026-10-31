@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Loom — the SRE agent that never applies what your policy didn't approve</title>
-<meta name="description" content="Loom is an open-source terminal agent for SRE and Platform Engineering. Every action is classified and policy-gated by DevMind before it runs.">
-<meta property="og:title" content="Loom — policy-gated SRE agent for your terminal">
+<title>Grantline — plan-scoped access for AI agents in the cloud</title>
+<meta name="description" content="Grantline is an open-source terminal agent for SRE and Platform Engineering. Every action is classified and policy-gated by DevMind before it runs.">
+<meta property="og:title" content="Grantline — plan-scoped access for AI agents in the cloud">
 <meta property="og:description" content="Open-source terminal agent for SRE / Platform Engineering. Every change policy-gated.">
 <meta property="og:image" content="screenshots/welcome.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -84,23 +84,23 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 <body>
 <div class="wrap">
   <nav>
-    <a class="brand" href="#"><canvas id="mini" width="18" height="16" style="width:27px;height:24px"></canvas>loom</a>
+    <a class="brand" href="#"><canvas id="mini" width="18" height="16" style="width:27px;height:24px"></canvas>grantline</a>
     <div class="navlinks">
       <a href="#how" class="hide">How it works</a>
       <a href="#features" class="hide">Features</a>
       <a href="#install">Install</a>
-      <a href="https://github.com/mordecaiusm922-create/loom">GitHub</a>
+      <a href="https://github.com/mordecaiusm922-create/grantline">GitHub</a>
     </div>
   </nav>
 
   <header class="hero">
     <div>
-      <span class="eyebrow">Open source · Apache-2.0 · for SRE &amp; Platform teams</span>
-      <h1>The SRE agent you can <span class="grad">actually let take action.</span></h1>
-      <p class="lead">Loom lives in your terminal, investigates incidents with read-only native tools, and proposes fixes. Every action is classified and policy-gated by DevMind before it runs: a <code>terraform destroy</code> on prod never slips through.</p>
+      <span class="eyebrow">Open source · Apache-2.0 · formerly Loom · for SRE, platform &amp; cloud security teams</span>
+      <h1>AI agents that only touch <span class="grad">what you approved.</span></h1>
+      <p class="lead">Grantline lives in your terminal, investigates incidents with read-only native tools, and proposes fixes. Every action is classified and policy-gated by DevMind before it runs: a <code>terraform destroy</code> on prod never slips through.</p>
       <div class="ctas">
         <a class="btn primary" href="#install">Get started</a>
-        <a class="btn" href="https://github.com/mordecaiusm922-create/loom">View on GitHub</a>
+        <a class="btn" href="https://github.com/mordecaiusm922-create/grantline">View on GitHub</a>
       </div>
     </div>
     <div class="owlstage">
@@ -119,11 +119,11 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 
 <section id="how">
   <div class="wrap">
-    <h2>The model thinks. Loom acts. DevMind decides.</h2>
+    <h2>The model thinks. Grantline acts. DevMind decides.</h2>
     <p class="sub">The model provider is replaceable. The policy gate is not: it runs before every tool call, including reads, and fails closed.</p>
     <div class="flow">
       <div class="step"><span class="tag">01</span><b>Model</b><span>Claude, OpenAI, Groq, Ollama or any OpenAI-compatible endpoint proposes the next action.</span></div>
-      <div class="step"><span class="tag">02</span><b>Loom</b><span>Parses the real argv, resolves the target environment, redacts secrets, classifies the change.</span></div>
+      <div class="step"><span class="tag">02</span><b>Grantline</b><span>Parses the real argv, resolves the target environment, redacts secrets, classifies the change.</span></div>
       <div class="step"><span class="tag">03</span><b>DevMind</b><span>Deterministic policy engine, no LLM in the decision path. Returns a verdict plus an audit id.</span></div>
       <div class="step"><span class="tag">04</span><b>Your infra</b><span>Only allowed actions run. Everything lands in a per-session timeline for the postmortem.</span></div>
     </div>
@@ -151,12 +151,12 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 <section style="padding-top:20px">
   <div class="wrap">
     <h2>In your terminal</h2>
-    <p class="sub">Real renders of <code>loom chat</code>, not mockups.</p>
+    <p class="sub">Real renders of <code>grantline chat</code>, not mockups.</p>
     <div class="shots">
-      <figure><img src="screenshots/investigating.png" alt="Loom investigating a crash-looping pod" loading="lazy"><figcaption>Investigating an OOMKilled pod with read-only tools and a live plan.</figcaption></figure>
-      <figure><img src="screenshots/blocked.png" alt="DevMind blocks a namespace deletion in production" loading="lazy"><figcaption>DevMind blocks <code>kubectl delete namespace</code> on prod. Loom does not retry around it.</figcaption></figure>
+      <figure><img src="screenshots/investigating.png" alt="Grantline investigating a crash-looping pod" loading="lazy"><figcaption>Investigating an OOMKilled pod with read-only tools and a live plan.</figcaption></figure>
+      <figure><img src="screenshots/blocked.png" alt="DevMind blocks a namespace deletion in production" loading="lazy"><figcaption>DevMind blocks <code>kubectl delete namespace</code> on prod. Grantline does not retry around it.</figcaption></figure>
       <figure><img src="screenshots/review.png" alt="A production change waits for human review" loading="lazy"><figcaption>A production change waits for a human, with the audit id.</figcaption></figure>
-      <figure><img src="screenshots/welcome.png" alt="Loom welcome screen" loading="lazy"><figcaption>The on-call owl. Its eyes follow every decision.</figcaption></figure>
+      <figure><img src="screenshots/welcome.png" alt="Grantline welcome screen" loading="lazy"><figcaption>The on-call owl. Its eyes follow every decision.</figcaption></figure>
     </div>
   </div>
 </section>
@@ -164,21 +164,21 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 <section id="install" style="padding-top:20px">
   <div class="wrap">
     <h2>Up and running in five minutes</h2>
-    <p class="sub">Loom is a single Go binary. Pick your system:</p>
+    <p class="sub">Grantline is a single Go binary. Pick your system:</p>
     <div class="reqs"><span>Go 1.24+</span><span>kubectl / terraform / aws·gcloud·az (the ones you use)</span><span>An LLM API key or a local model</span></div>
     <div class="tabs" id="ostabs">
       <button data-os="unix" class="on">macOS / Linux</button>
       <button data-os="win">Windows (PowerShell)</button>
     </div>
     <div class="term" id="steps"></div>
-    <p class="note">No Go yet? Install it from <a href="https://go.dev/dl/">go.dev/dl</a>. Prefer building from source? <code>git clone https://github.com/mordecaiusm922-create/loom &amp;&amp; cd loom &amp;&amp; go build -o loom ./cmd/loom</code></p>
+    <p class="note">No Go yet? Install it from <a href="https://go.dev/dl/">go.dev/dl</a>. Prefer building from source? <code>git clone https://github.com/mordecaiusm922-create/grantline &amp;&amp; cd grantline &amp;&amp; go build -o grantline ./cmd/grantline</code></p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span>Loom · Apache-2.0 · governed by <span style="color:var(--violet)">DevMind</span></span>
-    <span><a href="https://github.com/mordecaiusm922-create/loom">GitHub</a> · <a href="https://github.com/mordecaiusm922-create/loom/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/mordecaiusm922-create/loom/blob/main/ROADMAP.md">Roadmap</a></span>
+    <span>Grantline · Apache-2.0 · governed by <span style="color:var(--violet)">DevMind</span></span>
+    <span><a href="https://github.com/mordecaiusm922-create/grantline">GitHub</a> · <a href="https://github.com/mordecaiusm922-create/grantline/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/mordecaiusm922-create/grantline/blob/main/ROADMAP.md">Roadmap</a></span>
   </div>
 </footer>
 
@@ -204,19 +204,19 @@ draw(owl,"idle",0);draw(mini,"idle",0);
 
 const STEPS={
  unix:[
-  ["Install Loom","go install github.com/mordecaiusm922-create/loom/cmd/loom@latest"],
+  ["Install Grantline","go install github.com/mordecaiusm922-create/grantline/cmd/grantline@latest"],
   ["Make sure Go's bin directory is on your PATH","export PATH=\"$PATH:$(go env GOPATH)/bin\""],
-  ["Create a config in your infra repo","loom init"],
+  ["Create a config in your infra repo","grantline init"],
   ["Add your model key and DevMind token","export ANTHROPIC_API_KEY=sk-ant-...\nexport DEVMIND_TOKEN=dvm_..."],
-  ["Check your setup (shell, kubectl, terraform, DevMind token)","loom doctor"],
-  ["Open the agent","loom chat"]],
+  ["Check your setup (shell, kubectl, terraform, DevMind token)","grantline doctor"],
+  ["Open the agent","grantline chat"]],
  win:[
-  ["Install Loom","go install github.com/mordecaiusm922-create/loom/cmd/loom@latest"],
+  ["Install Grantline","go install github.com/mordecaiusm922-create/grantline/cmd/grantline@latest"],
   ["Make sure Go's bin directory is on your PATH","$env:Path += \";$env:USERPROFILE\\go\\bin\""],
-  ["Create a config in your infra repo","loom init"],
+  ["Create a config in your infra repo","grantline init"],
   ["Add your model key and DevMind token","$env:ANTHROPIC_API_KEY = \"sk-ant-...\"\n$env:DEVMIND_TOKEN = \"dvm_...\""],
-  ["Check your setup (shell, kubectl, terraform, DevMind token)","loom doctor"],
-  ["Open the agent","loom chat"]]};
+  ["Check your setup (shell, kubectl, terraform, DevMind token)","grantline doctor"],
+  ["Open the agent","grantline chat"]]};
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function renderSteps(os){const box=document.getElementById("steps");box.innerHTML="";STEPS[os].forEach(([what,cmd],i)=>{const row=document.createElement("div");row.className="cmd";row.innerHTML='<div class="num">'+(i+1)+'</div><div class="body"><div class="what">'+what+'</div><pre>'+cmd.split("\n").map(l=>'<span class="p">'+(os==="win"?"PS&gt; ":"$ ")+'</span>'+esc(l)).join("\n")+'</pre></div>';const btn=document.createElement("button");btn.className="copy";btn.textContent="Copy";btn.onclick=()=>{navigator.clipboard.writeText(cmd).then(()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy",1400)})};row.appendChild(btn);box.appendChild(row)})}
 document.querySelectorAll("#ostabs button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#ostabs button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSteps(b.dataset.os)});

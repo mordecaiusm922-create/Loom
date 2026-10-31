@@ -5,11 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
 )
 
 // EventType identifies what kind of thing happened during a run. Both the
-// plain-text CLI (loom run) and the TUI (loom chat) consume the same event
+// plain-text CLI (grantline run) and the TUI (grantline chat) consume the same event
 // stream -- they just render it differently. This is what makes the TUI a
 // presentation layer on top of the existing, already-tested loop, not a
 // second implementation of it.
@@ -27,7 +27,7 @@ const (
 )
 
 // PlanStep is one line of the model's declared plan (see the update_plan
-// tool). Status is one of "pending", "in_progress", "done" -- Loom does not
+// tool). Status is one of "pending", "in_progress", "done" -- Grantline does not
 // enforce the model updates these accurately, it just surfaces what the
 // model reports.
 type PlanStep struct {
@@ -67,7 +67,7 @@ type Event struct {
 	Err error
 }
 
-// defaultObserver reproduces exactly what `loom run` printed before events
+// defaultObserver reproduces exactly what `grantline run` printed before events
 // existed -- the CLI's behavior does not change when this package gains an
 // event stream.
 func defaultObserver(sessionID string) func(Event) {
@@ -88,12 +88,12 @@ func defaultObserver(sessionID string) func(Event) {
 }
 
 func fmtSessionSummary(sessionID string, e Event) {
-	fmt.Fprintf(os.Stderr, "[loom] session input_tokens=%d output_tokens=%d estimated_cost_usd=%.6f duration=%s session=%s\n",
+	fmt.Fprintf(os.Stderr, "[grantline] session input_tokens=%d output_tokens=%d estimated_cost_usd=%.6f duration=%s session=%s\n",
 		e.InputTokens, e.OutputTokens, e.EstimatedCostUSD, e.Duration.Round(time.Millisecond), sessionID)
 }
 
 func fmtRoute(sessionID string, e Event) {
-	fmt.Fprintf(os.Stderr, "[loom] route task=%s provider=%s reason=%s session=%s\n", e.Task, e.Provider, e.Reason, sessionID)
+	fmt.Fprintf(os.Stderr, "[grantline] route task=%s provider=%s reason=%s session=%s\n", e.Task, e.Provider, e.Reason, sessionID)
 }
 
 func fmtText(e Event) {
@@ -101,7 +101,7 @@ func fmtText(e Event) {
 }
 
 func fmtPlan(e Event) {
-	fmt.Fprintln(os.Stderr, "[loom] plan:")
+	fmt.Fprintln(os.Stderr, "[grantline] plan:")
 	for i, step := range e.Steps {
 		mark := " "
 		switch step.Status {
@@ -115,6 +115,6 @@ func fmtPlan(e Event) {
 }
 
 func fmtToolResult(sessionID string, e Event) {
-	fmt.Fprintf(os.Stderr, "[loom] action tool=%s engine=%s decision=%s risk=%.1f executed=%t outcome=%s session=%s\n",
+	fmt.Fprintf(os.Stderr, "[grantline] action tool=%s engine=%s decision=%s risk=%.1f executed=%t outcome=%s session=%s\n",
 		e.Tool, e.Engine, e.Decision, e.RiskScore, e.Executed, e.Outcome, sessionID)
 }

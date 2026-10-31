@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
 )
 
 // Environment is the resolved target of one tool call.

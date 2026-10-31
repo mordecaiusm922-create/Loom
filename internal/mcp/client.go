@@ -15,7 +15,7 @@ import (
 
 // DefaultTimeout bounds how long a single JSON-RPC call waits for a
 // response line before giving up. A hung/misbehaving MCP server must not be
-// able to hang an entire Loom session -- this matters most exactly when it
+// able to hang an entire Grantline session -- this matters most exactly when it
 // would hurt most, mid-incident.
 const DefaultTimeout = 15 * time.Second
 
@@ -59,7 +59,7 @@ type StdioClient struct {
 	timeout time.Duration
 }
 
-// ToolDefinition is the portion of an MCP tools/list response Loom needs to
+// ToolDefinition is the portion of an MCP tools/list response Grantline needs to
 // expose a remote tool through its normal governed registry.
 type ToolDefinition struct {
 	Name        string         `json:"name"`
@@ -119,7 +119,7 @@ func (c *StdioClient) initialize() error {
 		"protocolVersion": protocolVersion,
 		"capabilities":    map[string]any{},
 		"clientInfo": map[string]string{
-			"name":    "loom",
+			"name":    "grantline",
 			"version": "0.4.0-sre",
 		},
 	}); err != nil {
@@ -224,7 +224,7 @@ func (c *StdioClient) CallTool(name string, args map[string]any) (json.RawMessag
 
 // Close asks the subprocess to exit by closing its stdin, then waits up to
 // CloseGracePeriod before sending SIGKILL. A server that ignores stdin
-// closing (or is simply deadlocked) must not be able to hang Loom's own
+// closing (or is simply deadlocked) must not be able to hang Grantline's own
 // shutdown -- an incident responder closing their session should never be
 // stuck waiting on a misbehaving integration.
 func (c *StdioClient) Close() error {

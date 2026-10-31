@@ -70,7 +70,7 @@ func TestStartFailsWhenInitializeTimesOut(t *testing.T) {
 // TestCallTimesOutOnHungServer is the regression test for the gap this
 // hardening pass closes: a server that starts but never writes a response
 // line must fail the call after the configured timeout instead of hanging
-// the caller (and therefore the whole Loom session) forever.
+// the caller (and therefore the whole Grantline session) forever.
 func TestCallTimesOutOnHungServer(t *testing.T) {
 	sh := requireSh(t)
 	originalGrace := CloseGracePeriod

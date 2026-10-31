@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
 )
 
 func sreWithEnvironments() config.SreConfig {

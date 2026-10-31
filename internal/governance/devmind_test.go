@@ -101,7 +101,7 @@ func TestDevMindRejectsUnknownDecision(t *testing.T) {
 
 func TestCheckRequiresToken(t *testing.T) {
 	engine := NewDevMindEngine("http://127.0.0.1:1", "")
-	if err := engine.Check(context.Background(), "loom-sre"); !errors.Is(err, ErrNoToken) {
+	if err := engine.Check(context.Background(), "grantline-sre"); !errors.Is(err, ErrNoToken) {
 		t.Fatalf("err = %v, want ErrNoToken", err)
 	}
 }
@@ -118,13 +118,13 @@ func TestCheckSendsTokenAndAcceptsValidDecision(t *testing.T) {
 	defer server.Close()
 
 	engine := NewDevMindEngine(server.URL, "dvm_test")
-	if err := engine.Check(context.Background(), "loom-sre"); err != nil {
+	if err := engine.Check(context.Background(), "grantline-sre"); err != nil {
 		t.Fatalf("Check() = %v, want nil", err)
 	}
 	if gotAuth != "Bearer dvm_test" || gotPath != "/evaluate" {
 		t.Fatalf("auth=%q path=%q", gotAuth, gotPath)
 	}
-	if gotBody.AgentID != "loom-sre" || gotBody.Operation != "read" {
+	if gotBody.AgentID != "grantline-sre" || gotBody.Operation != "read" {
 		t.Fatalf("probe must be a read by the configured agent, got %+v", gotBody)
 	}
 }
@@ -136,7 +136,7 @@ func TestCheckExplainsEachFailure(t *testing.T) {
 		want   string
 	}{
 		{http.StatusUnauthorized, `{}`, "HTTP 401"},
-		{http.StatusForbidden, `{}`, "LOOM_AGENT_ID"},
+		{http.StatusForbidden, `{}`, "GRANTLINE_AGENT_ID"},
 		{http.StatusServiceUnavailable, `{}`, "HTTP 503"},
 		{http.StatusInternalServerError, `{}`, "HTTP 500"},
 		{http.StatusOK, `{"decision":"MAYBE"}`, "unexpected response"},
@@ -146,7 +146,7 @@ func TestCheckExplainsEachFailure(t *testing.T) {
 			w.WriteHeader(tc.status)
 			_, _ = w.Write([]byte(tc.body))
 		}))
-		err := NewDevMindEngine(server.URL, "dvm_test").Check(context.Background(), "loom-sre")
+		err := NewDevMindEngine(server.URL, "dvm_test").Check(context.Background(), "grantline-sre")
 		server.Close()
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("status %d: err = %v, want it to mention %q", tc.status, err, tc.want)
@@ -158,7 +158,7 @@ func TestCheckReportsUnreachableService(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	url := server.URL
 	server.Close()
-	if err := NewDevMindEngine(url, "dvm_test").Check(context.Background(), "loom-sre"); err == nil || !strings.Contains(err.Error(), "could not reach DevMind") {
+	if err := NewDevMindEngine(url, "dvm_test").Check(context.Background(), "grantline-sre"); err == nil || !strings.Contains(err.Error(), "could not reach DevMind") {
 		t.Fatalf("err = %v, want unreachable error", err)
 	}
 }

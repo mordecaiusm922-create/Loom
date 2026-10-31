@@ -6,8 +6,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
 )
 
 func TestTruncateOutputKeepsHeadAndTail(t *testing.T) {
@@ -19,7 +19,7 @@ func TestTruncateOutputKeepsHeadAndTail(t *testing.T) {
 	if !strings.HasPrefix(got, "HEADER") || !strings.Contains(got, "FATAL: connection refused") {
 		t.Fatalf("head or tail lost:\n%s", got)
 	}
-	if !strings.Contains(got, "bytes truncated by Loom") {
+	if !strings.Contains(got, "bytes truncated by Grantline") {
 		t.Fatal("missing truncation marker")
 	}
 }

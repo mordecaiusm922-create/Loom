@@ -1,6 +1,6 @@
 # Security Policy
 
-Loom executes infrastructure commands on behalf of an AI model, so security
+Grantline executes infrastructure commands on behalf of an AI model, so security
 reports are the highest-priority issues in this project.
 
 ## Reporting a vulnerability
@@ -11,7 +11,7 @@ repository instead.
 
 Please include:
 
-- the Loom version (`loom version`) and OS,
+- the Grantline version (`grantline version`) and OS,
 - the shell in use (`sre.shell`: `powershell` or `bash`),
 - a minimal reproduction (prompt, config with secrets removed, expected vs.
   actual behavior),
@@ -33,7 +33,7 @@ We especially want to hear about:
 - **Environment mis-resolution** — a production target resolved as
   staging/dev, which lowers the scrutiny it gets.
 - **Secret exposure** — credentials reaching the model provider, the session
-  timeline (`.loom/`), or logs despite redaction; reads of credential files
+  timeline (`.grantline/`), or logs despite redaction; reads of credential files
   that should be refused.
 - **Injection** — prompt injection from tool output or MCP servers that leads
   to an action the operator did not ask for, or argument injection in the
@@ -42,7 +42,7 @@ We especially want to hear about:
 
 ## Out of scope
 
-- Running Loom with `LOOM_UNSAFE_DISABLE_GOVERNANCE=1` — that opt-out removes
+- Running Grantline with `GRANTLINE_UNSAFE_DISABLE_GOVERNANCE=1` — that opt-out removes
   the guarantees on purpose.
 - Vulnerabilities in the model providers, in DevMind's hosted service, or in
   third-party MCP servers (report those to their owners; DevMind issues can
@@ -51,4 +51,4 @@ We especially want to hear about:
 
 ## Supported versions
 
-Only the latest release receives security fixes while Loom is pre-1.0.
+Only the latest release receives security fixes while Grantline is pre-1.0.

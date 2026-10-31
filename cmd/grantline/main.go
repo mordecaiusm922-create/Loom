@@ -10,26 +10,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mordecaiusm922-create/loom/internal/agent"
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
-	"github.com/mordecaiusm922-create/loom/internal/runbook"
-	"github.com/mordecaiusm922-create/loom/internal/tui"
+	"github.com/mordecaiusm922-create/grantline/internal/agent"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/runbook"
+	"github.com/mordecaiusm922-create/grantline/internal/tui"
 )
 
 // version is set at release time via -ldflags "-X main.version=...".
 var version = "dev"
 
-const usage = `Loom -- a governed runtime for SRE / Platform Engineering agents.
+const usage = `Grantline -- a governed runtime for SRE / Platform Engineering agents.
 
 Usage:
-  loom run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] "<prompt>"  Run a governed task
-  loom chat [--dry-run]              Interactive TUI on the same session
-  loom runbooks                      List the available runbooks
-  loom init                          Create loom.config.json (never overwrites)
-  loom doctor                        Check the local configuration
-  loom config                        Print the effective configuration
-  loom version                       Print the version
+  grantline run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] "<prompt>"  Run a governed task
+  grantline chat [--dry-run]              Interactive TUI on the same session
+  grantline runbooks                      List the available runbooks
+  grantline init                          Create grantline.config.json (never overwrites)
+  grantline doctor                        Check the local configuration
+  grantline config                        Print the effective configuration
+  grantline version                       Print the version
 
 Task types: trivial_edit, planning, security_review, incident_response.
 Domain: Terraform/OpenTofu, Kubernetes/Helm, cloud CLIs (aws/gcloud/az),
@@ -39,8 +39,8 @@ bash on Linux/macOS and PowerShell on Windows (change it with "sre.shell");
 there are also read-only native tools
 (k8s_get, k8s_describe, k8s_logs, cloud_read, metrics_query).
 Governance is mandatory: export DEVMIND_TOKEN=dvm_... and verify with
-loom doctor. A local opt-out requires setting
-LOOM_UNSAFE_DISABLE_GOVERNANCE=1 explicitly.
+grantline doctor. A local opt-out requires setting
+GRANTLINE_UNSAFE_DISABLE_GOVERNANCE=1 explicitly.
 `
 
 func main() {
@@ -62,7 +62,7 @@ func main() {
 	case "config":
 		cmdConfig()
 	case "version":
-		fmt.Println("loom " + version)
+		fmt.Println("grantline " + version)
 	default:
 		fmt.Print(usage)
 		os.Exit(1)
@@ -121,7 +121,7 @@ func cmdRun(args []string) {
 		}
 	}
 	if strings.TrimSpace(prompt) == "" {
-		fatal("usage: loom run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] \"<prompt>\"")
+		fatal("usage: grantline run [--task type] [--runbook name] [--resume session] [--dry-run] [--non-interactive] \"<prompt>\"")
 	}
 	if resumeID != "" {
 		contextSummary, err := agent.ResumeContext(resumeID)
@@ -177,7 +177,7 @@ func cmdChat(args []string) {
 	dryRun := false
 	for _, arg := range args {
 		if arg != "--dry-run" {
-			fatal("usage: loom chat [--dry-run]")
+			fatal("usage: grantline chat [--dry-run]")
 		}
 		dryRun = true
 	}
@@ -193,7 +193,18 @@ func cmdChat(args []string) {
 }
 
 func cmdInit() {
-	path := "loom.config.json"
+	path := config.ConfigFile
+	if legacy, err := os.ReadFile(config.LegacyConfigFile); err == nil {
+		// Keep the settings of a project set up before the rename from Loom.
+		if err := writeConfig(path, legacy); err != nil {
+			if os.IsExist(err) {
+				fatal("%s already exists; not overwritten", path)
+			}
+			fatal("creating config: %v", err)
+		}
+		fmt.Printf("created %s from %s; delete %s once you have checked it\n", path, config.LegacyConfigFile, config.LegacyConfigFile)
+		return
+	}
 	if err := writeDefaultConfig(path); err != nil {
 		if os.IsExist(err) {
 			fatal("%s already exists; not overwritten", path)
@@ -203,23 +214,29 @@ func cmdInit() {
 	fmt.Printf("created %s\n", path)
 }
 
-// configFileMode keeps loom.config.json readable only by its owner: it may
+// configFileMode keeps grantline.config.json readable only by its owner: it may
 // hold a DevMind token (prefer DEVMIND_TOKEN) or provider settings.
 const configFileMode = 0o600
 
 // writeDefaultConfig creates path with the default configuration and never
 // overwrites an existing file.
 func writeDefaultConfig(path string) error {
+	data, err := json.MarshalIndent(config.Default(), "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeConfig(path, append(data, '\n'))
+}
+
+// writeConfig creates path with owner-only permissions and never overwrites
+// an existing file.
+func writeConfig(path string, data []byte) error {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, configFileMode)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	data, err := json.MarshalIndent(config.Default(), "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = file.Write(append(data, '\n'))
+	_, err = file.Write(data)
 	return err
 }
 
@@ -229,7 +246,7 @@ func cmdDoctor() {
 		fatal("invalid config: %v", err)
 	}
 	failures := 0
-	fmt.Println("Loom doctor")
+	fmt.Println("Grantline doctor")
 	fmt.Println("  config: OK")
 	switch {
 	case cfg.Governance.Enabled && cfg.Governance.ResolvedEngine() == config.EngineDevMind:
@@ -238,7 +255,7 @@ func cmdDoctor() {
 	case cfg.Governance.Enabled:
 		fmt.Println("  governance: OK -- local policy (reads run, changes ask you first, catastrophic commands are blocked)")
 		fmt.Println("  devmind: not connected -- set DEVMIND_TOKEN for fine-grained verdicts, team approvals and an audit trail")
-	case os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1":
+	case os.Getenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE") == "1":
 		fmt.Println("  governance: UNSAFE opt-out enabled")
 	default:
 		fmt.Println("  governance: ERROR (governance.enabled must be true)")
@@ -293,12 +310,15 @@ func cmdConfig() {
 	fmt.Println(string(data))
 }
 
-// agentIDFromEnv is the agent identity Loom presents to DevMind.
+// agentIDFromEnv is the agent identity Grantline presents to DevMind.
 func agentIDFromEnv() string {
-	if id := os.Getenv("LOOM_AGENT_ID"); id != "" {
+	if id := os.Getenv("GRANTLINE_AGENT_ID"); id != "" {
 		return id
 	}
-	return "loom-sre"
+	if id := os.Getenv("LOOM_AGENT_ID"); id != "" { // name before the rename
+		return id
+	}
+	return "grantline-sre"
 }
 
 // checkDevMind reports where the token comes from and proves it works with
@@ -309,7 +329,7 @@ func checkDevMind(cfg config.Config) int {
 	case strings.TrimSpace(os.Getenv(config.DevMindTokenEnv)) != "":
 		fmt.Println("  devmind token: set via DEVMIND_TOKEN")
 	case cfg.Governance.Token != "":
-		fmt.Println("  devmind token: set in loom.config.json (prefer DEVMIND_TOKEN so it never sits in a file)")
+		fmt.Println("  devmind token: set in grantline.config.json (prefer DEVMIND_TOKEN so it never sits in a file)")
 	default:
 		fmt.Println("  devmind token: ERROR -- missing; export DEVMIND_TOKEN=dvm_...")
 		return 1

@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// LocalEngine is the policy Loom uses when no DevMind token is configured,
-// so anyone can try Loom in minutes without an account. It is deliberately
+// LocalEngine is the policy Grantline uses when no DevMind token is configured,
+// so anyone can try Grantline in minutes without an account. It is deliberately
 // conservative and coarse:
 //
 //   - native read-only tools run (ALLOW);
@@ -16,7 +16,7 @@ import (
 //   - a short list of catastrophic commands is always BLOCK.
 //
 // It is a seatbelt, not a policy engine: it does not score risk, keep
-// session history or write an audit trail outside .loom/sessions. Those,
+// session history or write an audit trail outside .grantline/sessions. Those,
 // and verdicts fine-grained enough that safe changes do not interrupt
 // you, come from DevMind.
 type LocalEngine struct{}
@@ -24,7 +24,7 @@ type LocalEngine struct{}
 // Name identifies the engine in operator-facing messages.
 func (LocalEngine) Name() string { return "local policy" }
 
-// readOnlyTools are Loom's native tools that never change state. Anything
+// readOnlyTools are Grantline's native tools that never change state. Anything
 // else -- the shell tool, write_file, MCP tools -- may mutate.
 var readOnlyTools = map[string]bool{
 	"read_file":     true,
