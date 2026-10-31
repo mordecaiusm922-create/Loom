@@ -10,11 +10,11 @@ import (
 )
 
 // TestDumpOwlANSI writes the real terminal output of every mood to the file
-// named by LOOM_DUMP_OWL, for visual review. Skipped otherwise.
+// named by GRANTLINE_DUMP_OWL, for visual review. Skipped otherwise.
 func TestDumpOwlANSI(t *testing.T) {
-	path := os.Getenv("LOOM_DUMP_OWL")
+	path := os.Getenv("GRANTLINE_DUMP_OWL")
 	if path == "" {
-		t.Skip("set LOOM_DUMP_OWL to dump the owl")
+		t.Skip("set GRANTLINE_DUMP_OWL to dump the owl")
 	}
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	var b strings.Builder

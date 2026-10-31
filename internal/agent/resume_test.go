@@ -9,7 +9,7 @@ import (
 
 func writeSessionLog(t *testing.T, dir, sessionID, content string) {
 	t.Helper()
-	sessionsDir := filepath.Join(dir, ".loom", "sessions")
+	sessionsDir := filepath.Join(dir, ".grantline", "sessions")
 	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

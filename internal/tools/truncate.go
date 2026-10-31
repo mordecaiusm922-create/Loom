@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
 )
 
 // truncateOutput keeps the head and the tail of an oversized tool output.
@@ -27,7 +27,7 @@ func truncateOutput(out string, limit int) string {
 	head := out[:runeStart(out, half)]
 	tail := out[runeStart(out, len(out)-half):]
 	dropped := len(out) - len(head) - len(tail)
-	return fmt.Sprintf("%s\n\n[... %d bytes truncated by Loom; narrow the query (--tail, --since, a label selector, -target) to see this part ...]\n\n%s", head, dropped, tail)
+	return fmt.Sprintf("%s\n\n[... %d bytes truncated by Grantline; narrow the query (--tail, --since, a label selector, -target) to see this part ...]\n\n%s", head, dropped, tail)
 }
 
 // runeStart moves i back to the start of the UTF-8 rune containing it, so

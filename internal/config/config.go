@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Config is the project-local loom.config.json schema.
+// Config is the project-local grantline.config.json schema.
 type Config struct {
 	DefaultProvider string `json:"default_provider"`
 
@@ -30,7 +30,7 @@ type Config struct {
 }
 
 // MCPServerConfig defines a local stdio MCP server whose tools are made
-// available to Loom alongside its built-in tools. The command is executed
+// available to Grantline alongside its built-in tools. The command is executed
 // directly (without a shell), and args are passed as an argument slice.
 type MCPServerConfig struct {
 	Name    string   `json:"name"`
@@ -38,7 +38,7 @@ type MCPServerConfig struct {
 	Args    []string `json:"args,omitempty"`
 }
 
-// SreConfig holds defaults for Loom's native SRE tools, so an operator does
+// SreConfig holds defaults for Grantline's native SRE tools, so an operator does
 // not have to pass --context/--profile/--namespace on every single call and
 // the model does not have to guess them either.
 type SreConfig struct {
@@ -65,7 +65,7 @@ type SreConfig struct {
 		DatadogAppKeyEnv string `json:"datadog_app_key_env,omitempty"`
 	} `json:"observability,omitempty"`
 
-	// RunbooksDir is where `loom run --runbook <name>` looks for
+	// RunbooksDir is where `grantline run --runbook <name>` looks for
 	// <name>.json. Defaults to "./runbooks" when empty.
 	RunbooksDir string `json:"runbooks_dir,omitempty"`
 
@@ -119,7 +119,7 @@ func (s SreConfig) ShellName() string {
 const DefaultMaxToolOutputBytes = 30_000
 
 // Environment tiers. Anything that cannot be resolved is TierUnknown, which
-// Loom treats as production for infrastructure changes (fail-safe).
+// Grantline treats as production for infrastructure changes (fail-safe).
 const (
 	TierProd    = "prod"
 	TierStaging = "staging"
@@ -161,7 +161,7 @@ type GovernanceConfig struct {
 	Enabled bool   `json:"enabled"`
 	Engine  string `json:"engine"`
 	BaseURL string `json:"base_url,omitempty"`
-	// Token authenticates Loom to DevMind. Prefer the DEVMIND_TOKEN
+	// Token authenticates Grantline to DevMind. Prefer the DEVMIND_TOKEN
 	// environment variable, which overrides this field, so the token
 	// never has to be written into a file.
 	Token string `json:"token,omitempty"`
@@ -186,7 +186,7 @@ const (
 // DefaultDevMindURL is DevMind's REST API (served under /v1).
 const DefaultDevMindURL = "https://devmind-mcp.onrender.com/v1"
 
-// ResolvedEngine is the engine Loom will actually use: EngineDevMind or
+// ResolvedEngine is the engine Grantline will actually use: EngineDevMind or
 // EngineLocal. "auto" (and an empty value) picks DevMind only when a token
 // is available, so a first run without an account still works and is
 // still governed.
@@ -231,9 +231,23 @@ func Default() Config {
 	return cfg
 }
 
+// ConfigFile is the project-local configuration file. LegacyConfigFile is
+// the name used before the project was renamed from Loom; it is still read,
+// with a warning, when ConfigFile does not exist.
+const (
+	ConfigFile       = "grantline.config.json"
+	LegacyConfigFile = "loom.config.json"
+)
+
 func Load(path string) (Config, error) {
 	if path == "" {
-		path = "loom.config.json"
+		path = ConfigFile
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			if _, err := os.Stat(LegacyConfigFile); err == nil {
+				fmt.Fprintf(os.Stderr, "[grantline] WARNING: reading %s; rename it to %s (the old name will stop working in a future release)\n", LegacyConfigFile, ConfigFile)
+				path = LegacyConfigFile
+			}
+		}
 	}
 	cfg := Default()
 	data, err := os.ReadFile(path)

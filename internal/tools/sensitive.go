@@ -25,7 +25,7 @@ var sensitiveHomePaths = []string{
 }
 
 // sensitivePathReason reports why path must not be read or written through
-// Loom's file tools, or "" when it is allowed. File contents go straight
+// Grantline's file tools, or "" when it is allowed. File contents go straight
 // into the model conversation, i.e. to a third-party provider: credential
 // files must never take that trip. The path is resolved (home expansion,
 // absolute, symlinks) first, so "../../.aws/credentials" or a symlink named
@@ -55,6 +55,16 @@ func sensitivePathReason(path string) string {
 			target := homeSlashed + "/" + rel
 			if pathEqualOrUnder(slashed, target) {
 				return "credentials directory (~/" + rel + ")"
+			}
+		}
+	}
+	// The session timelines are the audit trail: the model must not read
+	// them back into a conversation or rewrite them. .loom/ is the
+	// directory used before the project was renamed.
+	if wd, err := os.Getwd(); err == nil {
+		for _, dir := range []string{".grantline", ".loom"} {
+			if pathEqualOrUnder(slashed, filepath.ToSlash(resolvePath(filepath.Join(wd, dir)))) {
+				return "session audit trail (" + dir + "/)"
 			}
 		}
 	}
@@ -99,7 +109,7 @@ func resolvePath(path string) string {
 
 func checkSensitivePath(path string) error {
 	if reason := sensitivePathReason(path); reason != "" {
-		return fmt.Errorf("protected path (%s): Loom does not read or write credential files, because their content would be sent to the model provider", reason)
+		return fmt.Errorf("protected path (%s): Grantline does not read or write credential files or its own audit trail through its file tools", reason)
 	}
 	return nil
 }

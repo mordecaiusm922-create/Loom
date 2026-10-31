@@ -44,7 +44,7 @@ func TestRouteForPromptAcceptsCustomProviderID(t *testing.T) {
 }
 
 func TestLoadRejectsUnknownShell(t *testing.T) {
-	path := t.TempDir() + "/loom.config.json"
+	path := t.TempDir() + "/grantline.config.json"
 	if err := os.WriteFile(path, []byte(`{"sre":{"shell":"zsh"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestLoadAppliesHostShellDefault(t *testing.T) {
 		t.Fatalf("no file: shell = %q, want %q", missing.Sre.Shell, want)
 	}
 
-	path := dir + "/loom.config.json"
+	path := dir + "/grantline.config.json"
 	if err := os.WriteFile(path, []byte(`{"sre":{"kube_context":"prod"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestLoadAppliesHostShellDefault(t *testing.T) {
 
 func TestDevMindTokenFromEnvironment(t *testing.T) {
 	dir := t.TempDir()
-	path := dir + "/loom.config.json"
+	path := dir + "/grantline.config.json"
 	if err := os.WriteFile(path, []byte(`{"governance":{"enabled":true,"engine":"devmind","token":"dvm_from_file"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -171,11 +171,55 @@ func TestDefaultGovernanceIsAutoOnV1(t *testing.T) {
 }
 
 func TestLoadRejectsUnknownGovernanceEngine(t *testing.T) {
-	path := t.TempDir() + "/loom.config.json"
+	path := t.TempDir() + "/grantline.config.json"
 	if err := os.WriteFile(path, []byte(`{"governance":{"enabled":true,"engine":"opa"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "governance.engine") {
 		t.Fatalf("err = %v, want an invalid governance.engine error", err)
+	}
+}
+
+func chdirTemp(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	return dir
+}
+
+func TestLoadPrefersGrantlineConfig(t *testing.T) {
+	chdirTemp(t)
+	_ = os.WriteFile(ConfigFile, []byte(`{"default_provider":"new"}`), 0o600)
+	_ = os.WriteFile(LegacyConfigFile, []byte(`{"default_provider":"old"}`), 0o600)
+	cfg, err := Load("")
+	if err != nil || cfg.DefaultProvider != "new" {
+		t.Fatalf("Load = %q, %v; want the grantline config", cfg.DefaultProvider, err)
+	}
+}
+
+func TestLoadFallsBackToLegacyLoomConfig(t *testing.T) {
+	chdirTemp(t)
+	_ = os.WriteFile(LegacyConfigFile, []byte(`{"default_provider":"old"}`), 0o600)
+	cfg, err := Load("")
+	if err != nil || cfg.DefaultProvider != "old" {
+		t.Fatalf("Load = %q, %v; want the legacy loom config", cfg.DefaultProvider, err)
+	}
+}
+
+func TestLoadWithoutAnyConfigKeepsGovernanceOn(t *testing.T) {
+	chdirTemp(t)
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Governance.Enabled || cfg.Governance.ResolvedEngine() == "" {
+		t.Fatalf("governance = %+v, want enabled by default", cfg.Governance)
 	}
 }

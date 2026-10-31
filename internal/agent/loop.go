@@ -9,17 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
-	"github.com/mordecaiusm922-create/loom/internal/mcp"
-	"github.com/mordecaiusm922-create/loom/internal/providers"
-	"github.com/mordecaiusm922-create/loom/internal/tools"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/mcp"
+	"github.com/mordecaiusm922-create/grantline/internal/providers"
+	"github.com/mordecaiusm922-create/grantline/internal/tools"
 )
 
 // systemPromptTemplate has two %[1]s slots for the configured shell tool
 // name (powershell or bash) so the prompt never names a tool that is not
 // registered. Build it with buildSystemPrompt.
-const systemPromptTemplate = `You are Loom, an SRE / Platform Engineering agent running in a terminal
+const systemPromptTemplate = `You are Grantline, an SRE / Platform Engineering agent running in a terminal
 on %[1]s.
 
 Your domain is strictly infrastructure and platform operations:
@@ -74,15 +74,15 @@ type Session struct {
 	mcpWarnings []error
 	dryRun      bool
 	// history is the conversation carried between RunWithTask calls, so
-	// `loom chat` is a conversation and not a series of unrelated one-shot
-	// prompts. `loom run` makes a single call, so it starts empty.
+	// `grantline chat` is a conversation and not a series of unrelated one-shot
+	// prompts. `grantline run` makes a single call, so it starts empty.
 	history []providers.Message
 	// resolve is resolveProvider outside tests.
 	resolve func(config.Config, string) (providers.Provider, error)
 }
 
 // NewSession wires a Registry to a governance engine and, best-effort, opens
-// a local append-only audit log at .loom/sessions/<sessionID>.jsonl. That
+// a local append-only audit log at .grantline/sessions/<sessionID>.jsonl. That
 // file is what makes a postmortem possible after the process exits: the
 // terminal/TUI output is transient, this is not. It never contains the raw
 // action payload, same redaction rule as AuditEvent itself.
@@ -96,22 +96,22 @@ func NewSession(cfg config.Config, agentID, sessionID string) (*Session, error) 
 		engine = governance.NewDevMindEngine(cfg.Governance.BaseURL, cfg.Governance.Token)
 	case cfg.Governance.Enabled:
 		engine = governance.LocalEngine{}
-		fmt.Fprintln(os.Stderr, "[loom] governance: local policy (no DevMind token). Reads run, changes ask you first, catastrophic commands are blocked.")
-	case os.Getenv("LOOM_UNSAFE_DISABLE_GOVERNANCE") == "1":
+		fmt.Fprintln(os.Stderr, "[grantline] governance: local policy (no DevMind token). Reads run, changes ask you first, catastrophic commands are blocked.")
+	case os.Getenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE") == "1":
 		engine = governance.NoopEngine{}
-		fmt.Fprintln(os.Stderr, "[loom] WARNING: governance disabled by LOOM_UNSAFE_DISABLE_GOVERNANCE=1")
+		fmt.Fprintln(os.Stderr, "[grantline] WARNING: governance disabled by GRANTLINE_UNSAFE_DISABLE_GOVERNANCE=1")
 	default:
-		return nil, fmt.Errorf("governance is mandatory; set governance.enabled=true, or use LOOM_UNSAFE_DISABLE_GOVERNANCE=1 for an explicit local opt-out")
+		return nil, fmt.Errorf("governance is mandatory; set governance.enabled=true, or use GRANTLINE_UNSAFE_DISABLE_GOVERNANCE=1 for an explicit local opt-out")
 	}
 	registry := tools.NewRegistry(engine, agentID, sessionID, cfg.Sre)
 	session := &Session{cfg: cfg, registry: registry, sessionID: sessionID, onEvent: defaultObserver(sessionID), resolve: resolveProvider}
-	// A misconfigured or unreachable MCP server must never block Loom from
+	// A misconfigured or unreachable MCP server must never block Grantline from
 	// starting: the native tools (powershell, k8s_*, cloud_read,
 	// metrics_query) already cover the SRE surface on their own. Failures
 	// are collected and warned about, not fatal -- see connectMCPServers.
 	session.mcpWarnings = session.connectMCPServers()
 	for _, warning := range session.mcpWarnings {
-		fmt.Fprintf(os.Stderr, "[loom] WARNING: MCP: %v\n", warning)
+		fmt.Fprintf(os.Stderr, "[grantline] WARNING: MCP: %v\n", warning)
 	}
 	session.auditFile = openAuditFile(sessionID)
 	registry.SetObserver(session.traceTool)
@@ -128,9 +128,9 @@ func (s *Session) MCPWarnings() []error { return s.mcpWarnings }
 // because a local log directory could not be created. A failure just means
 // this session has no persisted timeline, and is printed once as a warning.
 func openAuditFile(sessionID string) *os.File {
-	dir := ".loom/sessions"
+	dir := ".grantline/sessions"
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "[loom] WARNING: could not create %s: %v (this session will not be persisted)\n", dir, err)
+		fmt.Fprintf(os.Stderr, "[grantline] WARNING: could not create %s: %v (this session will not be persisted)\n", dir, err)
 		return nil
 	}
 	path := fmt.Sprintf("%s/%s.jsonl", dir, sessionID)
@@ -139,7 +139,7 @@ func openAuditFile(sessionID string) *os.File {
 	// unrelated incidents into one postmortem record.
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[loom] WARNING: could not open %s: %v (this session will not be persisted)\n", path, err)
+		fmt.Fprintf(os.Stderr, "[grantline] WARNING: could not open %s: %v (this session will not be persisted)\n", path, err)
 		return nil
 	}
 	return file
@@ -159,7 +159,7 @@ func (s *Session) Close() error {
 }
 
 // SetDryRun propagates rehearsal mode to the governed registry. It is kept
-// on Session because both `loom run` and `loom chat` create Sessions.
+// on Session because both `grantline run` and `grantline chat` create Sessions.
 func (s *Session) SetDryRun(dryRun bool) {
 	s.dryRun = dryRun
 	s.registry.SetDryRun(dryRun)
@@ -237,7 +237,7 @@ func (s *Session) connectMCPServers() []error {
 }
 
 // SetEventObserver replaces the default (print-to-stdout/stderr) event
-// handler. loom chat uses this to route events into the TUI instead.
+// handler. grantline chat uses this to route events into the TUI instead.
 func (s *Session) SetEventObserver(fn func(Event)) {
 	if fn != nil {
 		s.onEvent = fn
@@ -245,7 +245,7 @@ func (s *Session) SetEventObserver(fn func(Event)) {
 }
 
 // SetConfirmation replaces the default (blocking terminal y/N prompt) used
-// for REVIEW/ESCALATE decisions. loom chat uses this to show a modal instead
+// for REVIEW/ESCALATE decisions. grantline chat uses this to show a modal instead
 // of reading from stdin, which a raw-mode TUI program does not do.
 func (s *Session) SetConfirmation(fn func(governance.Decision, *governance.EvaluateResponse) bool) {
 	s.registry.SetConfirmation(fn)
@@ -259,7 +259,7 @@ func (s *Session) emit(e Event) {
 
 // ToolNames lists the registered tool names, in registration order isn't
 // guaranteed (map iteration) -- callers that need a stable display order
-// should sort. Used by loom chat to render the tools sidebar.
+// should sort. Used by grantline chat to render the tools sidebar.
 func (s *Session) ToolNames() []string {
 	names := make([]string, 0, len(s.registry.List()))
 	for _, t := range s.registry.List() {
@@ -271,7 +271,7 @@ func (s *Session) ToolNames() []string {
 // SessionID returns the session identifier this Session was created with.
 func (s *Session) SessionID() string { return s.sessionID }
 
-// ClearHistory forgets the conversation so far (`/clear` in loom chat).
+// ClearHistory forgets the conversation so far (`/clear` in grantline chat).
 // The persisted .jsonl timeline is not touched.
 func (s *Session) ClearHistory() { s.history = nil }
 

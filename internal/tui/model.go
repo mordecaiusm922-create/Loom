@@ -1,5 +1,5 @@
-// Package tui implements `loom chat`, an interactive Bubble Tea front-end
-// over the exact same agent.Session used by `loom run`. It is a
+// Package tui implements `grantline chat`, an interactive Bubble Tea front-end
+// over the exact same agent.Session used by `grantline run`. It is a
 // presentation layer, not a second agent implementation: it subscribes to
 // the same Event stream and the same governance confirmation hook that the
 // plain-text CLI already uses.
@@ -16,10 +16,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mordecaiusm922-create/loom/internal/agent"
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
-	"github.com/mordecaiusm922-create/loom/internal/tools"
+	"github.com/mordecaiusm922-create/grantline/internal/agent"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/tools"
 )
 
 // confirmRequest crosses from the agent's background goroutine into the
@@ -249,7 +249,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// A pending governance confirmation takes over all keyboard input --
 	// nothing else (typing a new prompt, quitting) is allowed until it's
-	// answered, mirroring how `loom run` blocks on the same y/N prompt.
+	// answered, mirroring how `grantline run` blocks on the same y/N prompt.
 	if m.pendingConfirm != nil {
 		switch strings.ToLower(msg.String()) {
 		case "y":
@@ -365,10 +365,10 @@ func (m *model) layout() {
 
 func (m *model) View() string {
 	if !m.ready {
-		return "starting loom chat..."
+		return "starting grantline chat..."
 	}
 
-	header := " " + headerStyle.Render("loom")
+	header := " " + headerStyle.Render("grantline")
 	if m.width < 90 {
 		// No sidebar, so no pixel owl: the one-line face carries the mood.
 		header = " " + m.mood.face() + header
