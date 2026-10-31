@@ -11,8 +11,8 @@ import (
 // sess-20260928T153045Z-9f2c01ab.
 //
 // It replaces sess-<PID>: PIDs repeat across machines and reboots (and are
-// tiny in containers, where Loom is often PID 1), so two unrelated
-// incidents appended into the same .loom/sessions/<id>.jsonl timeline and a
+// tiny in containers, where Grantline is often PID 1), so two unrelated
+// incidents appended into the same .grantline/sessions/<id>.jsonl timeline and a
 // --resume could pick up someone else's session. The timestamp keeps IDs
 // sortable in `ls`; the random suffix makes them unique.
 func NewSessionID() string {

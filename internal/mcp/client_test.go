@@ -15,7 +15,7 @@ func requireSh(t *testing.T) string {
 	t.Helper()
 	path, err := exec.LookPath("sh")
 	if err != nil {
-		t.Skip("sh no disponible en este entorno; se omite el test de protocolo MCP")
+		t.Skip("sh is not available; skipping the MCP protocol test")
 	}
 	return path
 }
@@ -31,7 +31,7 @@ read -r initialized
 case "$initialized" in *'"method":"notifications/initialized"'*) ;; *) exit 1 ;; esac
 read -r line
 id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
-printf '{"jsonrpc":"2.0","id":%s,"result":{"tools":[{"name":"echo_tool","description":"repite el input","inputSchema":{"type":"object"},"annotations":{"readOnlyHint":true}}]}}\n' "$id"
+printf '{"jsonrpc":"2.0","id":%s,"result":{"tools":[{"name":"echo_tool","description":"echoes its input","inputSchema":{"type":"object"},"annotations":{"readOnlyHint":true}}]}}\n' "$id"
 `
 	client, err := StartStdioServer(sh, "-c", script)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestStartFailsWhenInitializeTimesOut(t *testing.T) {
 // TestCallTimesOutOnHungServer is the regression test for the gap this
 // hardening pass closes: a server that starts but never writes a response
 // line must fail the call after the configured timeout instead of hanging
-// the caller (and therefore the whole Loom session) forever.
+// the caller (and therefore the whole Grantline session) forever.
 func TestCallTimesOutOnHungServer(t *testing.T) {
 	sh := requireSh(t)
 	originalGrace := CloseGracePeriod

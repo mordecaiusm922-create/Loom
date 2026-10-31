@@ -6,18 +6,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/providers"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/providers"
 )
 
 func TestNewSessionDegradesPartiallyWhenAnMCPServerFails(t *testing.T) {
-	t.Setenv("LOOM_UNSAFE_DISABLE_GOVERNANCE", "1")
+	t.Setenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE", "1")
 	chdir(t, t.TempDir())
 
 	cfg := config.Default()
 	cfg.Governance.Enabled = false
 	cfg.MCPServers = []config.MCPServerConfig{
-		{Name: "does-not-exist", Command: "loom-mcp-server-that-does-not-exist"},
+		{Name: "does-not-exist", Command: "grantline-mcp-server-that-does-not-exist"},
 	}
 
 	session, err := NewSession(cfg, "agent", "sess-mcp-degrade")
@@ -62,7 +62,7 @@ func (p *scriptedProvider) Complete(_ context.Context, req providers.CompletionR
 
 func newScriptedSession(t *testing.T, provider *scriptedProvider) *Session {
 	t.Helper()
-	t.Setenv("LOOM_UNSAFE_DISABLE_GOVERNANCE", "1")
+	t.Setenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE", "1")
 	chdir(t, t.TempDir())
 	cfg := config.Default()
 	cfg.Governance.Enabled = false
@@ -76,7 +76,7 @@ func newScriptedSession(t *testing.T, provider *scriptedProvider) *Session {
 	return session
 }
 
-// TestChatKeepsConversationAcrossTurns is the regression test for loom chat
+// TestChatKeepsConversationAcrossTurns is the regression test for grantline chat
 // having no memory: every RunWithTask started from a single user message,
 // so a follow-up ("and the other namespace?") reached the model with no
 // idea what the previous turn was about.
@@ -211,5 +211,24 @@ func TestNewSessionRequiringDevMindWithoutTokenFails(t *testing.T) {
 	_, err := NewSession(cfg, "agent", "sess-devmind-no-token")
 	if err == nil || !strings.Contains(err.Error(), config.DevMindTokenEnv) {
 		t.Fatalf("err = %v, want an error telling the operator to set %s", err, config.DevMindTokenEnv)
+	}
+}
+
+// The opt-out variable was renamed with the project and deliberately has no
+// fallback: a leftover LOOM_UNSAFE_DISABLE_GOVERNANCE must not turn
+// governance off.
+func TestLegacyUnsafeVariableDoesNotDisableGovernance(t *testing.T) {
+	t.Setenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE", "")
+	t.Setenv("LOOM_UNSAFE_DISABLE_GOVERNANCE", "1")
+	chdir(t, t.TempDir())
+	cfg := config.Default()
+	cfg.Governance.Enabled = false
+	session, err := NewSession(cfg, "agent", "sess-legacy-unsafe")
+	if err == nil {
+		session.Close()
+		t.Fatal("NewSession succeeded with governance disabled and only the legacy opt-out set")
+	}
+	if !strings.Contains(err.Error(), "governance is mandatory") {
+		t.Fatalf("err = %v, want the mandatory-governance refusal", err)
 	}
 }
