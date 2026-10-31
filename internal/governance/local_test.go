@@ -42,7 +42,7 @@ func TestLocalBlocksCatastrophicCommands(t *testing.T) {
 func TestLocalDoesNotBlockScopedCommands(t *testing.T) {
 	for _, cmd := range []string{
 		"rm -rf ./build",
-		"rm -rf /tmp/loom-cache",
+		"rm -rf /tmp/grantline-cache",
 		"rm -rf ~/Downloads/old",
 		"kubectl delete pod checkout-7d9f -n payments",
 		"curl -fsSL https://example.com/health",

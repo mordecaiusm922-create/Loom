@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
 )
 
 // Environment is the resolved target of one tool call.
@@ -15,6 +15,8 @@ type Environment struct {
 	Reason string
 }
 
+// prodWords includes non-English synonyms ("produccion") so context and
+// profile names in other languages are still recognized as production.
 var prodWords = map[string]bool{"prod": true, "production": true, "produccion": true, "prd": true, "live": true}
 
 var nonProdWords = map[string]string{

@@ -71,7 +71,7 @@ type openAIToolCall struct {
 	// extra_content.google.thought_signature, which MUST be echoed back
 	// unchanged on the next request or multi-turn tool calling breaks
 	// with HTTP 400 ("Function call is missing a thought_signature").
-	// Loom does not need to understand this payload's shape: it just
+	// Grantline does not need to understand this payload's shape: it just
 	// round-trips whatever the provider sent, for whichever provider
 	// requires it.
 	ExtraContent map[string]any `json:"extra_content,omitempty"`

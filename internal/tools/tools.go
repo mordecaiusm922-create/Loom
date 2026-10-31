@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
-	"github.com/mordecaiusm922-create/loom/internal/redact"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/redact"
 )
 
 type Tool struct {
@@ -201,7 +201,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	case governance.Rewrite:
 		event.Outcome = "rewrite_required"
 		r.emit(event)
-		return "", fmt.Errorf("%s requires this action to be rewritten; Loom does not apply REWRITE automatically", governance.EngineName(r.gov))
+		return "", fmt.Errorf("%s requires this action to be rewritten; Grantline does not apply REWRITE automatically", governance.EngineName(r.gov))
 	case governance.Allow:
 		// continue
 	default:
@@ -234,7 +234,7 @@ func (r *Registry) emit(event AuditEvent) {
 }
 
 func confirmInTerminal(decision governance.Decision, response *governance.EvaluateResponse) bool {
-	fmt.Fprintf(os.Stderr, "\n[loom] DevMind: %s (risk_score=%.1f)\n", decision, response.RiskScore)
+	fmt.Fprintf(os.Stderr, "\n[grantline] DevMind: %s (risk_score=%.1f)\n", decision, response.RiskScore)
 	if response.AuditID != "" {
 		fmt.Fprintf(os.Stderr, "  audit_id: %s\n", response.AuditID)
 	}
@@ -272,8 +272,8 @@ func resolvePowerShellBinary() (string, error) {
 //
 // On Windows, %SystemRoot%\System32\bash.exe is the WSL launcher, which
 // usually comes first on PATH and fails outright when no WSL distribution
-// is installed ("El subsistema de Windows para Linux no tiene
-// distribuciones instaladas"). It is skipped in favor of a real bash such
+// is installed (on a Spanish-language Windows the message reads "El
+// subsistema de Windows para Linux no tiene distribuciones instaladas"). It is skipped in favor of a real bash such
 // as Git Bash, including Git's default install locations when Git's bin
 // directory is not on PATH.
 func resolveBashBinary() (string, error) {
@@ -355,7 +355,7 @@ func shellTool(shell string) Tool {
 			},
 			"required": []string{"command"},
 		},
-		// The shell tool is Loom's general-purpose escape hatch: it can run
+		// The shell tool is Grantline's general-purpose escape hatch: it can run
 		// absolutely anything, including reads. There is no reliable way to
 		// tell a read command from a mutation by string-matching alone, and
 		// getting that wrong in the mutating direction defeats --dry-run
@@ -450,15 +450,14 @@ func writeFileTool() Tool {
 			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("escrito: %s (%d bytes)", path, len(content)), nil
+			return fmt.Sprintf("wrote %s (%d bytes)", path, len(content)), nil
 		}}
 }
 
-// updatePlanTool declares/actualiza el plan de pasos de una tarea de
-// operacion (ej. un runbook de incidente). No ejecuta nada por si mismo --
-// el loop del agente (internal/agent) intercepta la llamada por nombre para
-// emitir un EventPlan; el Run aqui solo confirma que el tool existe y
-// devuelve un ack, para que el registro de auditoria tenga una entrada.
+// updatePlanTool declares or updates the step plan of an operations task
+// (e.g. an incident runbook). It runs nothing by itself: the agent loop
+// (internal/agent) intercepts the call by name to emit an EventPlan; Run
+// only acknowledges it, so the audit log still gets an entry.
 func updatePlanTool() Tool {
 	return Tool{
 		Name: "update_plan",
@@ -829,7 +828,7 @@ func metricsQueryTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "metrics_query",
 		Description: "Queries observability metrics (Prometheus/Grafana/Datadog) " +
-			"using the endpoints configured in loom.config.json (sre.observability). " +
+			"using the endpoints configured in grantline.config.json (sre.observability). " +
 			"Read-only. Vector/scalar responses (instant queries) " +
 			"are condensed to a METRIC/VALUE table; range/matrix responses are returned " +
 			"in full because condensing them would lose the time series. Use 'raw: true' " +

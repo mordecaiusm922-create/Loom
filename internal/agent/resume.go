@@ -17,7 +17,13 @@ func ResumeContext(sessionID string) (string, error) {
 	if strings.TrimSpace(sessionID) == "" || filepath.Base(sessionID) != sessionID || strings.Contains(sessionID, ".") {
 		return "", fmt.Errorf("invalid session id")
 	}
-	path := filepath.Join(".loom", "sessions", sessionID+".jsonl")
+	path := filepath.Join(".grantline", "sessions", sessionID+".jsonl")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// Sessions recorded before the rename from Loom.
+		if legacy := filepath.Join(".loom", "sessions", sessionID+".jsonl"); fileExists(legacy) {
+			path = legacy
+		}
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("opening session %q: %w", sessionID, err)
@@ -86,4 +92,9 @@ func orUnknown(value string) string {
 		return "desconocido"
 	}
 	return value
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

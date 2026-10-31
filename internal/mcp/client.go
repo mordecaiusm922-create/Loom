@@ -1,9 +1,6 @@
-// Package mcp implementa un cliente mínimo del Model Context Protocol
-// sobre stdio. Esto es deliberadamente un subconjunto del spec --
-// suficiente para listar y llamar herramientas de un servidor MCP
-// local (ej. `python devmind_server.py`) -- no una implementación
-// completa de streamable-http/SSE, que es el siguiente paso natural
-// para conectar contra devmind-mcp.onrender.com directamente.
+// Package mcp is a minimal Model Context Protocol client over stdio. It is
+// deliberately a subset of the spec -- enough to list and call the tools of
+// a local MCP server -- not a full streamable-http/SSE implementation.
 package mcp
 
 import (
@@ -18,7 +15,7 @@ import (
 
 // DefaultTimeout bounds how long a single JSON-RPC call waits for a
 // response line before giving up. A hung/misbehaving MCP server must not be
-// able to hang an entire Loom session -- this matters most exactly when it
+// able to hang an entire Grantline session -- this matters most exactly when it
 // would hurt most, mid-incident.
 const DefaultTimeout = 15 * time.Second
 
@@ -51,8 +48,8 @@ type rpcNotification struct {
 	Params  any    `json:"params,omitempty"`
 }
 
-// StdioClient lanza un servidor MCP como subproceso y habla JSON-RPC
-// línea por línea sobre su stdin/stdout.
+// StdioClient starts an MCP server as a subprocess and speaks
+// line-delimited JSON-RPC over its stdin/stdout.
 type StdioClient struct {
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
@@ -62,7 +59,7 @@ type StdioClient struct {
 	timeout time.Duration
 }
 
-// ToolDefinition is the portion of an MCP tools/list response Loom needs to
+// ToolDefinition is the portion of an MCP tools/list response Grantline needs to
 // expose a remote tool through its normal governed registry.
 type ToolDefinition struct {
 	Name        string         `json:"name"`
@@ -122,7 +119,7 @@ func (c *StdioClient) initialize() error {
 		"protocolVersion": protocolVersion,
 		"capabilities":    map[string]any{},
 		"clientInfo": map[string]string{
-			"name":    "loom",
+			"name":    "grantline",
 			"version": "0.4.0-sre",
 		},
 	}); err != nil {
@@ -195,7 +192,7 @@ func (c *StdioClient) call(method string, params any) (json.RawMessage, error) {
 	}
 }
 
-// ListTools llama al método estándar "tools/list".
+// ListTools calls the standard "tools/list" method.
 func (c *StdioClient) ListTools() (json.RawMessage, error) {
 	return c.call("tools/list", nil)
 }
@@ -217,7 +214,7 @@ func (c *StdioClient) DiscoverTools() ([]ToolDefinition, error) {
 	return response.Tools, nil
 }
 
-// CallTool llama a "tools/call" con el nombre y argumentos dados.
+// CallTool calls "tools/call" with the given name and arguments.
 func (c *StdioClient) CallTool(name string, args map[string]any) (json.RawMessage, error) {
 	return c.call("tools/call", map[string]any{
 		"name":      name,
@@ -227,7 +224,7 @@ func (c *StdioClient) CallTool(name string, args map[string]any) (json.RawMessag
 
 // Close asks the subprocess to exit by closing its stdin, then waits up to
 // CloseGracePeriod before sending SIGKILL. A server that ignores stdin
-// closing (or is simply deadlocked) must not be able to hang Loom's own
+// closing (or is simply deadlocked) must not be able to hang Grantline's own
 // shutdown -- an incident responder closing their session should never be
 // stuck waiting on a misbehaving integration.
 func (c *StdioClient) Close() error {

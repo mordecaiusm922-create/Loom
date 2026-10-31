@@ -12,20 +12,20 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"github.com/mordecaiusm922-create/loom/internal/agent"
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/agent"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
 )
 
-// TestDumpScreens renders the real loom chat View() in several states to
-// LOOM_DUMP_SCREENS/<name>.ansi, for README screenshots. Skipped otherwise.
+// TestDumpScreens renders the real grantline chat View() in several states to
+// GRANTLINE_DUMP_SCREENS/<name>.ansi, for README screenshots. Skipped otherwise.
 func TestDumpScreens(t *testing.T) {
-	dir := os.Getenv("LOOM_DUMP_SCREENS")
+	dir := os.Getenv("GRANTLINE_DUMP_SCREENS")
 	if dir == "" {
-		t.Skip("set LOOM_DUMP_SCREENS to dump screens")
+		t.Skip("set GRANTLINE_DUMP_SCREENS to dump screens")
 	}
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Setenv("LOOM_UNSAFE_DISABLE_GOVERNANCE", "1")
+	t.Setenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE", "1")
 	work := t.TempDir()
 	wd, _ := os.Getwd()
 	_ = os.Chdir(work)
@@ -34,7 +34,7 @@ func TestDumpScreens(t *testing.T) {
 	cfg := config.Default()
 	cfg.Governance.Enabled = false
 	cfg.Sre.KubeContext = "prod-eks"
-	session, err := agent.NewSession(cfg, "loom-sre", "sess-20261003T091512Z-7f3a9c01")
+	session, err := agent.NewSession(cfg, "grantline-sre", "sess-20261003T091512Z-7f3a9c01")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestDumpScreens(t *testing.T) {
 	for _, e := range []agent.Event{
 		{Type: agent.EventRoute, Task: "security_review", Provider: "anthropic"},
 		{Type: agent.EventToolResult, Tool: "bash", Engine: "infra", Decision: governance.Block, RiskScore: 9.8, Outcome: "blocked"},
-		{Type: agent.EventText, Text: "DevMind bloqueo `kubectl delete namespace payments` en produccion (blast radius: org). No voy a reintentar por otra via; si es necesario, hace falta un break-glass con justificacion."},
+		{Type: agent.EventText, Text: "Policy blocked `kubectl delete namespace payments` on production (blast radius: org). I will not retry it another way; if it is really needed, it requires a justified break-glass."},
 	} {
 		m.applyEvent(e)
 	}
@@ -127,13 +127,13 @@ func buildScreenModel(cfg config.Config, session *agent.Session) *model {
 // disabled (no network), for layout tests.
 func newScreenModel(t *testing.T) *model {
 	t.Helper()
-	t.Setenv("LOOM_UNSAFE_DISABLE_GOVERNANCE", "1")
+	t.Setenv("GRANTLINE_UNSAFE_DISABLE_GOVERNANCE", "1")
 	wd, _ := os.Getwd()
 	_ = os.Chdir(t.TempDir())
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 	cfg := config.Default()
 	cfg.Governance.Enabled = false
-	session, err := agent.NewSession(cfg, "loom-sre", "sess-layout-test")
+	session, err := agent.NewSession(cfg, "grantline-sre", "sess-layout-test")
 	if err != nil {
 		t.Fatal(err)
 	}
