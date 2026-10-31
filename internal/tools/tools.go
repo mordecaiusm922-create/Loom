@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
-	"github.com/mordecaiusm922-create/loom/internal/redact"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/redact"
 )
 
 type Tool struct {
@@ -201,7 +201,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	case governance.Rewrite:
 		event.Outcome = "rewrite_required"
 		r.emit(event)
-		return "", fmt.Errorf("%s requires this action to be rewritten; Loom does not apply REWRITE automatically", governance.EngineName(r.gov))
+		return "", fmt.Errorf("%s requires this action to be rewritten; Grantline does not apply REWRITE automatically", governance.EngineName(r.gov))
 	case governance.Allow:
 		// continue
 	default:
@@ -234,7 +234,7 @@ func (r *Registry) emit(event AuditEvent) {
 }
 
 func confirmInTerminal(decision governance.Decision, response *governance.EvaluateResponse) bool {
-	fmt.Fprintf(os.Stderr, "\n[loom] DevMind: %s (risk_score=%.1f)\n", decision, response.RiskScore)
+	fmt.Fprintf(os.Stderr, "\n[grantline] DevMind: %s (risk_score=%.1f)\n", decision, response.RiskScore)
 	if response.AuditID != "" {
 		fmt.Fprintf(os.Stderr, "  audit_id: %s\n", response.AuditID)
 	}
@@ -355,7 +355,7 @@ func shellTool(shell string) Tool {
 			},
 			"required": []string{"command"},
 		},
-		// The shell tool is Loom's general-purpose escape hatch: it can run
+		// The shell tool is Grantline's general-purpose escape hatch: it can run
 		// absolutely anything, including reads. There is no reliable way to
 		// tell a read command from a mutation by string-matching alone, and
 		// getting that wrong in the mutating direction defeats --dry-run
@@ -828,7 +828,7 @@ func metricsQueryTool(sre config.SreConfig) Tool {
 	return Tool{
 		Name: "metrics_query",
 		Description: "Queries observability metrics (Prometheus/Grafana/Datadog) " +
-			"using the endpoints configured in loom.config.json (sre.observability). " +
+			"using the endpoints configured in grantline.config.json (sre.observability). " +
 			"Read-only. Vector/scalar responses (instant queries) " +
 			"are condensed to a METRIC/VALUE table; range/matrix responses are returned " +
 			"in full because condensing them would lose the time series. Use 'raw: true' " +

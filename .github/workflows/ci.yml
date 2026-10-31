@@ -33,4 +33,4 @@ jobs:
         run: go test -count=1 ./...
         if: runner.os != 'Linux'
       - name: build
-        run: go build -o loom-ci ./cmd/loom
+        run: go build -o grantline-ci ./cmd/grantline

@@ -1,48 +1,49 @@
-# Loom
+# Grantline
 
-[![ci](https://github.com/mordecaiusm922-create/loom/actions/workflows/ci.yml/badge.svg)](https://github.com/mordecaiusm922-create/loom/actions/workflows/ci.yml)
+[![ci](https://github.com/mordecaiusm922-create/grantline/actions/workflows/ci.yml/badge.svg)](https://github.com/mordecaiusm922-create/grantline/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**The open-source SRE agent you can actually let take action — every change policy-gated.**
+**Plan-scoped access for AI agents in the cloud: agents propose, a deterministic policy reviews, and only the reviewed plan runs.**
 
-![loom chat: welcome screen with the on-call owl](docs/screenshots/welcome.png)
+> Grantline was called **Loom** until v0.5.x. Existing `loom.config.json` files and `.loom/` sessions are still read; rename them when convenient.
 
-| Investigating an incident | DevMind blocks a destructive change |
-|---|---|
-| ![investigating](docs/screenshots/investigating.png) | ![blocked](docs/screenshots/blocked.png) |
-
-![REVIEW: a production change waits for a human](docs/screenshots/review.png)
+Grantline is an open-source agent for SRE, platform and cloud security teams.
+It investigates with read-only tools, proposes infrastructure changes, and
+runs nothing until a policy engine returns a verdict. Where it is going
+(see the [roadmap](ROADMAP.md)): the reviewed plan itself becomes the
+credential, so an apply can only touch what was approved, enforced by the
+cloud provider rather than by the agent.
 
 ## Try it in two minutes
 
 ```bash
-go install github.com/mordecaiusm922-create/loom/cmd/loom@latest   # or grab a binary from Releases
-loom init                        # writes loom.config.json (owner-only permissions)
-export ANTHROPIC_API_KEY=sk-ant-...  # the config from `loom init` uses Anthropic; for OpenAI, Gemini,
+go install github.com/mordecaiusm922-create/grantline/cmd/grantline@latest  # or grab a binary from Releases
+grantline init                       # writes grantline.config.json (owner-only permissions)
+export ANTHROPIC_API_KEY=sk-ant-...  # the config from `grantline init` uses Anthropic; for OpenAI, Gemini,
                                     # Groq or a local Ollama model, see Configuration below
-loom doctor                      # checks your shell, kubectl/terraform and the policy engine
-loom chat                        # ask it to investigate something; every change asks you first
+grantline doctor                     # checks your shell, kubectl/terraform and the policy engine
+grantline chat                       # ask it to investigate something; every change asks you first
 ```
 
-No account needed: the built-in local policy blocks catastrophic commands and asks before any change. Tried it? [Open an issue](https://github.com/mordecaiusm922-create/loom/issues/new) — even "this confused me" helps.
+No account needed: the built-in local policy blocks catastrophic commands and asks before any change. Tried it? [Open an issue](https://github.com/mordecaiusm922-create/grantline/issues/new) — even "this confused me" helps.
 
-Loom is a governed execution runtime for SRE / Platform Engineering agents.
+Grantline is a governed execution runtime for SRE / Platform Engineering agents.
 
 It is not a general-purpose coding agent. Its domain is infrastructure and
 platform operations: Terraform/OpenTofu, Kubernetes/Helm, cloud CLIs
 (aws/gcloud/az), CI/CD, observability (Prometheus/Grafana/Datadog), incident
 response, capacity, schema migrations, and access control (IAM, secret
 rotation). The system prompt enforces this scope: asked for unrelated
-application feature work, Loom says so and redirects instead of improvising
+application feature work, Grantline says so and redirects instead of improvising
 outside its domain.
 
-The model thinks, Loom acts, and a policy gate decides whether each tool
+The model thinks, Grantline acts, and a policy gate decides whether each tool
 action may run: a conservative local policy out of the box, or DevMind, a
 deterministic policy engine where the same action always gets the same
 decision and no LLM sits in the decision path. The model provider is
 replaceable; the policy gate is never optional.
 
-The shell underneath Loom is configurable with `sre.shell`. When unset, it
+The shell underneath Grantline is configurable with `sre.shell`. When unset, it
 follows the host OS:
 
 - `"bash"` (default on Linux and macOS) — commands run as
@@ -125,8 +126,8 @@ the reverse. Both go through the same infra classification and governance.
   - `read_file` and `write_file` refuse credential files (`~/.aws/credentials`, kubeconfig, `.env*`, `*.pem`, `*.key`, `~/.ssh`, `*.tfstate`, ...). Paths are resolved first: `~`, relative paths and symlinks.
   - `cloud_read` refuses reads that return secret material, such as `secretsmanager get-secret-value` or `keyvault secret show`.
   - Every tool output is capped at `sre.max_tool_output_bytes` (default 30000; head and tail are kept) before it is sent to the provider.
-  - Every tool output also goes through pattern-based redaction, which catches cloud keys, JWTs, tokens, URL credentials, `password=...` and Kubernetes Secret `data:`. Patterns cannot recognize every possible credential format, so do not rely on redaction alone. Run Loom with credentials scoped to what the task needs.
-- `loom chat` keeps the conversation across turns; `/clear` resets it.
+  - Every tool output also goes through pattern-based redaction, which catches cloud keys, JWTs, tokens, URL credentials, `password=...` and Kubernetes Secret `data:`. Patterns cannot recognize every possible credential format, so do not rely on redaction alone. Run Grantline with credentials scoped to what the task needs.
+- `grantline chat` keeps the conversation across turns; `/clear` resets it.
 - Session IDs are `sess-<UTC timestamp>-<random>`, one `.jsonl` timeline per
   session (never appended to), and each record carries DevMind's
   `audit_id` so the local timeline joins DevMind's audit trail.
@@ -135,16 +136,16 @@ the reverse. Both go through the same infra classification and governance.
 - Readable action traces containing the tool, decision, risk score, outcome,
   and session ID—never the action payload.
 - **A persisted incident timeline.** Every `run` and `chat` session
-  best-effort-appends its audit trail to `.loom/sessions/<session-id>.jsonl`
+  best-effort-appends its audit trail to `.grantline/sessions/<session-id>.jsonl`
   (same no-payload redaction as the live trace), so a postmortem can
-  reconstruct what Loom actually did after the terminal is long closed.
-- **Runbooks.** `loom run --runbook <name> "<extra context>"` loads
+  reconstruct what Grantline actually did after the terminal is long closed.
+- **Runbooks.** `grantline run --runbook <name> "<extra context>"` loads
   `runbooks/<name>.json` and seeds the model's starting prompt and task hint
   from it — a standard starting procedure the model still adapts to what it
-  actually finds, not a blind script. `loom runbooks` lists what's
+  actually finds, not a blind script. `grantline runbooks` lists what's
   available. Two examples ship in `runbooks/`: `pod-crashloop` and
   `high-latency`.
-- **`--dry-run` rehearsal mode**, on both `loom run` and `loom chat`. A
+- **`--dry-run` rehearsal mode**, on both `grantline run` and `grantline chat`. A
   mutating tool call (the shell tool, `write_file`, or any MCP tool without an
   explicit `readOnlyHint` annotation) is skipped *before governance is even
   consulted* and reported back as `[dry-run] <tool> was not run`. Read-only
@@ -155,7 +156,7 @@ the reverse. Both go through the same infra classification and governance.
   but silently never checked) was found and fixed during this audit; see the
   regression tests in `internal/tools/tools_test.go` prefixed `TestDryRun`.
 - **MCP servers as first-class tools.** Configure a local stdio MCP server
-  under `mcp_servers` in `loom.config.json` and its tools appear in the same
+  under `mcp_servers` in `grantline.config.json` and its tools appear in the same
   list as the native ones — same governance evaluation before every call,
   same audit trail, no special-casing anywhere else in the agent loop. An
   MCP tool without a `readOnlyHint`/`destructiveHint` annotation is treated
@@ -163,9 +164,9 @@ the reverse. Both go through the same infra classification and governance.
   action is never trusted. A per-call timeout (15s by default) means a
   hung server fails that one call instead of hanging the session; a
   misconfigured or unreachable server degrades that one integration
-  (reported via a startup warning) instead of blocking Loom from starting
+  (reported via a startup warning) instead of blocking Grantline from starting
   at all — the native tools always work regardless of MCP server health.
-- **Session resume.** `loom run --resume <session-id> "<new context>"` reads
+- **Session resume.** `grantline run --resume <session-id> "<new context>"` reads
   that session's persisted `.jsonl` timeline and folds a compact summary
   (tool, decision, outcome per call — never the raw payload) into the new
   session's starting prompt, so an on-call handoff doesn't lose state.
@@ -184,16 +185,16 @@ the reverse. Both go through the same infra classification and governance.
 ## Install
 
 Prebuilt binaries for Linux, macOS and Windows (amd64 and arm64) are attached to
-every [release](https://github.com/mordecaiusm922-create/loom/releases/latest).
-Download the archive for your platform, extract `loom`, and put it on your PATH.
+every [release](https://github.com/mordecaiusm922-create/grantline/releases/latest).
+Download the archive for your platform, extract `grantline`, and put it on your PATH.
 
 Or install with Go:
 
 ```bash
-go install github.com/mordecaiusm922-create/loom/cmd/loom@latest
-loom init
-loom doctor
-loom chat
+go install github.com/mordecaiusm922-create/grantline/cmd/grantline@latest
+grantline init
+grantline doctor
+grantline chat
 ```
 
 `go install` puts the binary in `$(go env GOPATH)/bin` (on Windows,
@@ -201,7 +202,7 @@ loom chat
 
 ## Governance: local policy or DevMind
 
-Every tool call is evaluated before it runs. Loom picks the engine
+Every tool call is evaluated before it runs. Grantline picks the engine
 automatically (`governance.engine: "auto"`, the default):
 
 | | Local policy (no account) | DevMind |
@@ -213,23 +214,23 @@ automatically (`governance.engine: "auto"`, the default):
 | Org-wide destructive infra changes | escalated | escalated, with blast-radius and Terraform/Kubernetes semantics |
 | Session risk memory, audit trail, team approvals | no | yes |
 
-You can try Loom right away with the local policy. To connect DevMind
+You can try Grantline right away with the local policy. To connect DevMind
 (early access; [request a token](https://devmind-gamma.vercel.app/#request-access)):
 
 ```bash
 export DEVMIND_TOKEN=dvm_...
-loom doctor
+grantline doctor
 ```
 
-`loom doctor` sends one harmless read-only probe and tells you exactly what
+`grantline doctor` sends one harmless read-only probe and tells you exactly what
 is wrong if it fails: missing token, rejected token (HTTP 401), a token
-bound to a different agent (HTTP 403; set `LOOM_AGENT_ID` to match), or
+bound to a different agent (HTTP 403; set `GRANTLINE_AGENT_ID` to match), or
 DevMind unreachable.
 
 `DEVMIND_TOKEN` takes precedence over `governance.token` in
-`loom.config.json`. Prefer the environment variable so the token never sits
-in a file; `loom.config.json` is already in `.gitignore`. Set
-`governance.engine` to `"devmind"` to require DevMind (Loom refuses to start
+`grantline.config.json`. Prefer the environment variable so the token never sits
+in a file; `grantline.config.json` is already in `.gitignore`. Set
+`governance.engine` to `"devmind"` to require DevMind (Grantline refuses to start
 without a token) or to `"local"` to always use the local policy. DevMind
 failures fail closed: transient errors are retried, and anything that still
 fails becomes `REVIEW`, never `ALLOW`.
@@ -238,42 +239,42 @@ fails becomes `REVIEW`, never `ALLOW`.
 
 Requires Go 1.24 or newer (older Go linkers omit the LC_UUID load command, so the binary will not launch on current macOS), plus the shell selected in `sre.shell` on PATH:
 `bash` (default on Linux/macOS) or PowerShell 7+ (`pwsh`, default on Windows). Native investigation tools additionally need `kubectl`
-and/or `aws`/`gcloud`/`az` on PATH for the ones you actually use; `loom
+and/or `aws`/`gcloud`/`az` on PATH for the ones you actually use; `grantline
 doctor` reports what it finds.
 
 ```bash
-go build -o loom ./cmd/loom
+go build -o grantline ./cmd/grantline
 go test ./...
 ```
 
 ## Quick start
 
 ```bash
-./loom init
+./grantline init
 export OPENAI_API_KEY=sk-...
 export DEVMIND_TOKEN=dvm_...   # optional: without it, the local policy governs
-./loom doctor
-./loom run --task planning "plan the EKS cluster upgrade to 1.31"
-./loom run --task security_review "review this Terraform change before it is applied"
-./loom run --task incident_response "checkout is returning 5xx, investigate and propose an action"
-./loom runbooks
-./loom run --runbook pod-crashloop "namespace checkout, pod checkout-7d9f restarting every 2 minutes"
-./loom run --dry-run --task security_review "apply the terraform change in infra/prod"
-./loom run --resume sess-1234 "error rate is still climbing, keep investigating"
+./grantline doctor
+./grantline run --task planning "plan the EKS cluster upgrade to 1.31"
+./grantline run --task security_review "review this Terraform change before it is applied"
+./grantline run --task incident_response "checkout is returning 5xx, investigate and propose an action"
+./grantline runbooks
+./grantline run --runbook pod-crashloop "namespace checkout, pod checkout-7d9f restarting every 2 minutes"
+./grantline run --dry-run --task security_review "apply the terraform change in infra/prod"
+./grantline run --resume sess-1234 "error rate is still climbing, keep investigating"
 ```
 
 ## Non-interactive CI
 
-Use `--non-interactive` to run Loom as a gated check in CI. In this mode
+Use `--non-interactive` to run Grantline as a gated check in CI. In this mode
 `BLOCK` fails as usual, and `REVIEW`/`ESCALATE` abort without reading stdin:
 a human review that CI cannot confirm is never approved automatically. All of
 these cases exit non-zero. The minimal example in
-`.github/workflows/loom-example.yml` reviews a pull request's Terraform diff;
+`.github/workflows/grantline-example.yml` reviews a pull request's Terraform diff;
 set `OPENAI_API_KEY` and `DEVMIND_TOKEN` as repository secrets before enabling
-it. Loom reads `DEVMIND_TOKEN` straight from the environment, so the token is
+it. Grantline reads `DEVMIND_TOKEN` straight from the environment, so the token is
 never written to a file.
 
-To use MCP servers, add them to `loom.config.json`:
+To use MCP servers, add them to `grantline.config.json`:
 
 ```json
 "mcp_servers": [
@@ -292,18 +293,18 @@ ollama pull qwen2.5-coder:7b
 ## Governance contract
 
 Governance is always on. `BLOCK` stops the action; `REVIEW` and `ESCALATE`
-require the operator to type `y` unless `loom run --non-interactive` is set,
+require the operator to type `y` unless `grantline run --non-interactive` is set,
 in which case they fail closed; `REWRITE` is not executed.
 
 For an intentionally unsafe local experiment only, set
-`governance.enabled=false` and `LOOM_UNSAFE_DISABLE_GOVERNANCE=1`. Loom emits
+`governance.enabled=false` and `GRANTLINE_UNSAFE_DISABLE_GOVERNANCE=1`. Grantline emits
 a warning on every such session. This opt-out exists for development, not
 production.
 
 ## Configuration
 
-`loom.config.json` is project-local. Start with `loom init` or copy
-`loom.config.example.json`.
+`grantline.config.json` is project-local. Start with `grantline init` or copy
+`grantline.config.example.json`.
 
 ```json
 {
@@ -374,7 +375,7 @@ destructive-cloud commands) to your strongest available model.
 
 ## Task classification
 
-`loom run` without `--task` classifies the prompt by keyword before routing:
+`grantline run` without `--task` classifies the prompt by keyword before routing:
 
 1. **`incident_response`** — outage/down/degraded/SEV1/SEV2/on-call/PagerDuty language.
 2. **`security_review`** — production, IAM, terraform/tofu, kubectl/helm, delete/drop/terminate/drain, secrets, migrations.

@@ -220,12 +220,12 @@ func (m mood) say() string {
 }
 
 var wordmarkRows = []string{
-	"█    ▄▀▀▄ ▄▀▀▄ █▄ ▄█",
-	"█    █  █ █  █ █ ▀ █",
-	"█▄▄▄ ▀▄▄▀ ▀▄▄▀ █   █",
+	"▄▀▀▀ █▀▀▄ ▄▀▀▄ █▄ █ ▀█▀ █    █ █▄ █ █▀▀▀",
+	"█ ▀█ █▄▄▀ █▄▄█ █ ▀█  █  █    █ █ ▀█ █▀▀ ",
+	"▀▄▄▀ █  █ █  █ █  █  █  █▄▄▄ █ █  █ █▄▄▄",
 }
 
-// wordmark renders "LOOM" in block letters with a horizontal gradient from
+// wordmark renders "GRANTLINE" in block letters with a horizontal gradient from
 // violet to cyan: the colors of a thread being woven.
 func wordmark() string {
 	width := 0
@@ -269,7 +269,7 @@ func welcome(m mood, t, width int, sessionID, context string) string {
 	tagline := lipgloss.NewStyle().Foreground(colorGray).Italic(true).
 		Render("the SRE agent that never applies what your policy did not approve")
 	if width < 64 {
-		return m.owl(t) + "\n\n" + headerStyle.Render("loom") + "\n" + tagline
+		return m.owl(t) + "\n\n" + headerStyle.Render("grantline") + "\n" + tagline
 	}
 
 	title := lipgloss.JoinVertical(lipgloss.Left, wordmark(), "", tagline)

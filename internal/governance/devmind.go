@@ -30,7 +30,7 @@ type EvaluateResponse struct {
 	Why                []string `json:"why"`
 	EscalationRequired bool     `json:"escalation_required"`
 	// AuditID is DevMind's identifier for the decision record it stored.
-	// Loom persists it next to the local outcome so a postmortem can join
+	// Grantline persists it next to the local outcome so a postmortem can join
 	// the local timeline with DevMind's audit trail. Empty on a local
 	// fail-closed decision (DevMind never saw the request).
 	AuditID string `json:"audit_id,omitempty"`
@@ -182,7 +182,7 @@ func (d *DevMindEngine) postOnce(ctx context.Context, path string, body []byte) 
 		reason := fmt.Sprintf("DevMind returned HTTP %d", resp.StatusCode)
 		switch resp.StatusCode {
 		case http.StatusUnauthorized, http.StatusForbidden:
-			reason += " (token missing or rejected: set DEVMIND_TOKEN and run loom doctor)"
+			reason += " (token missing or rejected: set DEVMIND_TOKEN and run grantline doctor)"
 		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			return nil, reason, true
 		}
@@ -201,7 +201,7 @@ func (d *DevMindEngine) postOnce(ctx context.Context, path string, body []byte) 
 // ErrNoToken means no DevMind token is configured at all.
 var ErrNoToken = errors.New("no DevMind token configured: export DEVMIND_TOKEN=dvm_...")
 
-// Check verifies, for `loom doctor`, that DevMind is reachable and accepts
+// Check verifies, for `grantline doctor`, that DevMind is reachable and accepts
 // the configured token, by evaluating one harmless read-only probe action.
 // Unlike EvaluateAction it never turns a failure into a decision: it
 // returns an error that says exactly what to fix. The deadline comes from
@@ -212,9 +212,9 @@ func (d *DevMindEngine) Check(ctx context.Context, agentID string) error {
 	}
 	body, err := json.Marshal(evaluateRequest{
 		AgentID:   agentID,
-		Tool:      "loom_doctor",
+		Tool:      "grantline_doctor",
 		Operation: "read",
-		Payload:   "loom doctor: connectivity and token check",
+		Payload:   "grantline doctor: connectivity and token check",
 	})
 	if err != nil {
 		return err
@@ -241,9 +241,9 @@ func (d *DevMindEngine) Check(ctx context.Context, agentID string) error {
 	case http.StatusUnauthorized:
 		return fmt.Errorf("DevMind rejected the token (HTTP 401): it is invalid, revoked, or issued for another DevMind service")
 	case http.StatusForbidden:
-		return fmt.Errorf("the token is bound to a different agent (HTTP 403): set LOOM_AGENT_ID to the agent it was issued for (now %q)", agentID)
+		return fmt.Errorf("the token is bound to a different agent (HTTP 403): set GRANTLINE_AGENT_ID to the agent it was issued for (now %q)", agentID)
 	case http.StatusServiceUnavailable:
-		return fmt.Errorf("DevMind is temporarily unavailable (HTTP 503): it may be waking up; run loom doctor again in a minute")
+		return fmt.Errorf("DevMind is temporarily unavailable (HTTP 503): it may be waking up; run grantline doctor again in a minute")
 	default:
 		return fmt.Errorf("DevMind returned HTTP %d", resp.StatusCode)
 	}
