@@ -47,7 +47,7 @@ func TestLoadMissingRunbookIsAHelpfulError(t *testing.T) {
 
 func TestLoadRejectsRunbookWithoutSteps(t *testing.T) {
 	dir := t.TempDir()
-	writeRunbook(t, dir, "empty", `{"title": "vacio"}`)
+	writeRunbook(t, dir, "empty", `{"title": "empty"}`)
 	_, err := Load(dir, "empty")
 	if err == nil || !strings.Contains(err.Error(), "steps") {
 		t.Fatalf("err = %v, want a missing-steps error", err)
