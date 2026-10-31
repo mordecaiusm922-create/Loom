@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
-	"github.com/mordecaiusm922-create/loom/internal/redact"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/redact"
 )
 
 func TestSensitivePathsAreRefused(t *testing.T) {
@@ -119,5 +119,22 @@ func TestExecuteRedactsEveryToolOutput(t *testing.T) {
 	}
 	if strings.Contains(out, "AKIAIOSFODNN7EXAMPLE") || !strings.Contains(out, redact.Mask) {
 		t.Fatalf("out = %q, want the key masked", out)
+	}
+}
+
+func TestSessionAuditTrailIsProtected(t *testing.T) {
+	dir := t.TempDir()
+	wd, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	for _, path := range []string{".grantline/sessions/sess-1.jsonl", ".loom/sessions/sess-1.jsonl", "./.grantline"} {
+		if reason := sensitivePathReason(path); reason == "" {
+			t.Fatalf("%s must be protected", path)
+		}
+	}
+	if reason := sensitivePathReason("notes/grantline.md"); reason != "" {
+		t.Fatalf("notes/grantline.md refused: %s", reason)
 	}
 }

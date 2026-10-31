@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mordecaiusm922-create/loom/internal/agent"
+	"github.com/mordecaiusm922-create/grantline/internal/agent"
 
 	"github.com/charmbracelet/x/ansi"
 )

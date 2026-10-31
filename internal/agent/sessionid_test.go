@@ -25,10 +25,10 @@ func TestNewSessionIDIsUniqueAndResumable(t *testing.T) {
 	// ID must always be resumable.
 	chdir(t, t.TempDir())
 	id := NewSessionID()
-	if err := os.MkdirAll(filepath.Join(".loom", "sessions"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(".grantline", "sessions"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(".loom", "sessions", id+".jsonl"), []byte(`{"Tool":"k8s_get","Decision":"ALLOW","Outcome":"completed"}`+"\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(".grantline", "sessions", id+".jsonl"), []byte(`{"Tool":"k8s_get","Decision":"ALLOW","Outcome":"completed"}`+"\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ResumeContext(id); err != nil {
@@ -40,10 +40,10 @@ func TestNewSessionIDIsUniqueAndResumable(t *testing.T) {
 // already had that name, merging unrelated incidents into one timeline.
 func TestOpenAuditFileNeverAppendsToAnotherSessionsTimeline(t *testing.T) {
 	chdir(t, t.TempDir())
-	if err := os.MkdirAll(filepath.Join(".loom", "sessions"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(".grantline", "sessions"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(".loom", "sessions", "sess-1234.jsonl")
+	path := filepath.Join(".grantline", "sessions", "sess-1234.jsonl")
 	previous := []byte(`{"Tool":"powershell","Outcome":"completed"}` + "\n")
 	if err := os.WriteFile(path, previous, 0644); err != nil {
 		t.Fatal(err)

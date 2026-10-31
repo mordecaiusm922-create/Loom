@@ -1,4 +1,4 @@
-module github.com/mordecaiusm922-create/loom
+module github.com/mordecaiusm922-create/grantline
 
 go 1.24
 

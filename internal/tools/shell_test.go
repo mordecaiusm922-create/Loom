@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
 )
 
 // TestShellConfigRegistersExactlyOneShell locks in that sre.shell swaps the
@@ -60,11 +60,11 @@ func TestBashToolRunsCommand(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Allow}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{Shell: "bash"})
 
-	out, err := registry.Execute(context.Background(), "bash", map[string]any{"command": "echo loom-$((40+2))"}, false)
+	out, err := registry.Execute(context.Background(), "bash", map[string]any{"command": "echo grantline-$((40+2))"}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(out, "loom-42") {
+	if !strings.Contains(out, "grantline-42") {
 		t.Fatalf("output = %q, want bash arithmetic expansion", out)
 	}
 }

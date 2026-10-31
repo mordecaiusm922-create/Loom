@@ -1,4 +1,4 @@
-name: Loom Terraform review (example)
+name: Grantline Terraform review (example)
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  loom-security-review:
+  grantline-security-review:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,10 +18,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24.x"
-      - name: Build Loom
-        run: go build -o loom ./cmd/loom
-      - name: Configure Loom
-        run: cp loom.config.example.json loom.config.json
+      - name: Build Grantline
+        run: go build -o grantline ./cmd/grantline
+      - name: Configure Grantline
+        run: cp grantline.config.example.json grantline.config.json
       - name: Review Terraform diff
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -29,5 +29,5 @@ jobs:
         run: |
           DIFF="$(git diff --unified=0 "origin/${{ github.base_ref }}"...HEAD -- '*.tf')"
           test -n "$DIFF"
-          ./loom run --task security_review --non-interactive "Review this Terraform diff and request an action only if it is strictly necessary:
+          ./grantline run --task security_review --non-interactive "Review this Terraform diff and request an action only if it is strictly necessary:
           $DIFF"

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mordecaiusm922-create/loom/internal/config"
-	"github.com/mordecaiusm922-create/loom/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/config"
+	"github.com/mordecaiusm922-create/grantline/internal/governance"
 )
 
 type fakeEngine struct {
@@ -156,7 +156,7 @@ func TestDestructiveTerraformRoutesToEvaluateChange(t *testing.T) {
 // ensures the "org" heuristic is scoped to the case we can actually justify:
 // a destroy/delete/uninstall AND our production heuristic already fired.
 // Anything else should defer to DevMind's own inference/regex scoring
-// instead of Loom guessing a scope it has no basis for.
+// instead of Grantline guessing a scope it has no basis for.
 func TestDestructiveTerraformWithoutProductionHeuristicLeavesBlastRadiusEmpty(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Allow}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})
@@ -479,7 +479,7 @@ func TestCloudReadRejectsUnlistedMutatingVerbBeforeExecution(t *testing.T) {
 }
 
 // The local timeline must carry DevMind's audit_id so a postmortem can
-// join "what Loom did" with "what DevMind decided and why".
+// join "what Grantline did" with "what DevMind decided and why".
 func TestAuditEventCarriesDevMindAuditID(t *testing.T) {
 	engine := &fakeEngine{response: &governance.EvaluateResponse{DecisionValue: governance.Block, AuditID: "act-42"}}
 	registry := NewRegistry(engine, "agent", "session", config.SreConfig{})

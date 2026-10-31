@@ -1,7 +1,7 @@
 // Package runbook loads reusable incident-response procedures from disk so
 // an SRE team can standardize "what to do when X happens" instead of
 // re-deriving it under pressure during every incident. A runbook seeds
-// Loom's initial prompt and its declared task hint; the model still
+// Grantline's initial prompt and its declared task hint; the model still
 // reasons about the specific situation, it does not just replay steps
 // blindly.
 package runbook
@@ -39,7 +39,7 @@ func Load(dir, name string) (Runbook, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Runbook{}, fmt.Errorf("runbook %q not found in %s (run 'loom runbooks' to list the available ones)", name, dir)
+			return Runbook{}, fmt.Errorf("runbook %q not found in %s (run 'grantline runbooks' to list the available ones)", name, dir)
 		}
 		return Runbook{}, err
 	}
