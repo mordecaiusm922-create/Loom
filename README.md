@@ -5,9 +5,9 @@
 
 **The open-source SRE agent you can actually let take action — every change policy-gated.**
 
-![loom chat: welcome screen with the on-call owl](docs/screenshots/welcome.png)
+![loom chat: welcome screen with the policy engine and session status](docs/screenshots/welcome.png)
 
-| Investigating an incident | DevMind blocks a destructive change |
+| Investigating an incident | A destructive change blocked by policy |
 |---|---|
 | ![investigating](docs/screenshots/investigating.png) | ![blocked](docs/screenshots/blocked.png) |
 

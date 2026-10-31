@@ -71,42 +71,40 @@ type model struct {
 
 	transcript []string
 
-	// mascot state
-	mood      mood
-	moodTicks int // spinner ticks left before a transient mood fades to idle
-	moodSince int // tick at which the current mood began; drives its animation
-	ticks     int
-	envName   string
-	envTier   string
+	// header status
+	status      status
+	statusTicks int // spinner ticks left before a transient status fades to idle
+	envName     string
+	envTier     string
 }
 
-// moodHold is how long a transient mood (happy, error) stays before the
-// owl goes back to idle: ~3s at the spinner's 10 ticks per second.
-const moodHold = 3 * ticksPerS
+// statusHold is how long a transient status (verified, error) stays before
+// it goes back to idle: ~3s at the spinner's 10 ticks per second.
+const statusHold = 3 * ticksPerS
 
-// setMood changes the owl's mood. hold > 0 makes it transient: it fades
-// back to idle after hold ticks. Setting the same mood again does not
-// restart its animation, so a stream of tool events keeps a smooth loop.
-func (m *model) setMood(next mood, hold int) {
-	if next != m.mood {
-		m.moodSince = m.ticks
-	}
-	m.mood, m.moodTicks = next, hold
+// setStatus changes the header status. hold > 0 makes it transient: it
+// fades back to idle after hold ticks.
+func (m *model) setStatus(next status, hold int) {
+	m.status, m.statusTicks = next, hold
 }
 
-// tick advances the animation clock and fades transient moods.
+// tick fades transient statuses.
 func (m *model) tick() {
-	m.ticks++
-	if m.moodTicks > 0 {
-		m.moodTicks--
-		if m.moodTicks == 0 {
-			m.setMood(moodIdle, 0)
+	if m.statusTicks > 0 {
+		m.statusTicks--
+		if m.statusTicks == 0 {
+			m.setStatus(statusIdle, 0)
 		}
 	}
 }
 
-// animT is how many ticks the current mood has been showing.
-func (m *model) animT() int { return m.ticks - m.moodSince }
+// engineName is the policy engine this session uses, for display.
+func (m *model) engineName() string {
+	if !m.cfg.Governance.Enabled {
+		return "disabled"
+	}
+	return m.cfg.Governance.ResolvedEngine()
+}
 
 // Run starts the interactive TUI. It blocks until the person quits.
 func Run(cfg config.Config, agentID, sessionID string, dryRun bool) error {
@@ -147,7 +145,7 @@ func Run(cfg config.Config, agentID, sessionID string, dryRun bool) error {
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(colorCyan)
+	sp.Style = lipgloss.NewStyle().Foreground(colorAccent)
 	m.spinner = sp
 
 	m.viewport = viewport.New(80, 20)
@@ -214,19 +212,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case confirmMsg:
 		req := confirmRequest(msg)
 		m.pendingConfirm = &req
-		m.setMood(moodAlert, 0)
+		m.setStatus(statusReview, 0)
 		return m, nil // re-issued only after the modal is answered, see handleKey
 
 	case runDoneMsg:
 		m.running = false
 		m.lastErr = msg.err
 		if msg.err != nil {
-			m.setMood(moodError, moodHold*2)
+			m.setStatus(statusError, statusHold*2)
 			m.transcript = append(m.transcript, errorLineStyle.Render("  x "+msg.err.Error()))
 			m.viewport.SetContent(m.renderTranscript())
 			m.viewport.GotoBottom()
 		} else {
-			m.setMood(moodHappy, moodHold)
+			m.setStatus(statusDone, statusHold)
 		}
 		m.input.Focus()
 		return m, nil
@@ -255,12 +253,12 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "y":
 			m.pendingConfirm.reply <- true
 			m.pendingConfirm = nil
-			m.setMood(moodThinking, 0)
+			m.setStatus(statusThinking, 0)
 			return m, waitForConfirm(m.confirmCh)
 		case "n", "enter", "esc":
 			m.pendingConfirm.reply <- false
 			m.pendingConfirm = nil
-			m.setMood(moodThinking, 0)
+			m.setStatus(statusThinking, 0)
 			return m, waitForConfirm(m.confirmCh)
 		}
 		return m, nil
@@ -300,7 +298,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) startRun(prompt string) tea.Cmd {
 	m.running = true
-	m.setMood(moodThinking, 0)
+	m.setStatus(statusThinking, 0)
 	if len(m.transcript) > 0 {
 		m.transcript = append(m.transcript, "")
 	}
@@ -325,14 +323,14 @@ func (m *model) applyEvent(e agent.Event) {
 		m.plan = e.Steps
 	case agent.EventToolStart:
 		if m.pendingConfirm == nil {
-			m.setMood(moodThinking, 0)
+			m.setStatus(statusThinking, 0)
 		}
 	case agent.EventToolResult:
 		m.toolCalls++
 		m.lastDecision = string(e.Decision)
 		m.lastRisk = e.RiskScore
 		if e.Decision == governance.Block {
-			m.setMood(moodBlocked, 0)
+			m.setStatus(statusBlocked, 0)
 		}
 		decision := string(e.Decision)
 		if decision == "" {
@@ -368,24 +366,19 @@ func (m *model) View() string {
 		return "starting loom chat..."
 	}
 
-	header := " " + headerStyle.Render("loom")
-	if m.width < 90 {
-		// No sidebar, so no pixel owl: the one-line face carries the mood.
-		header = " " + m.mood.face() + header
-	}
+	header := " " + headerStyle.Render("LOOM")
 	if badge := m.envBadge(); badge != "" {
 		header += "  " + badge
 	}
-	status := m.mood.say()
+	header += "  " + m.status.indicator()
 	if m.running {
-		status = m.spinner.View() + " " + status
+		header += " " + m.spinner.View()
 	}
-	header += "  " + sayStyle.Render(status)
 
 	content := m.viewport.View()
 	if len(m.transcript) == 0 {
 		content = lipgloss.Place(m.viewport.Width, m.viewport.Height, lipgloss.Center, lipgloss.Center,
-			welcome(m.mood, m.animT(), m.viewport.Width, m.sessionID, m.envName))
+			welcome(m.viewport.Width, m.sessionID, m.envName, m.engineName()))
 	}
 	transcriptBox := transcriptBoxStyle.Render(content)
 	sidebar := m.renderSidebar()
@@ -414,13 +407,8 @@ func (m *model) View() string {
 
 func (m *model) renderSidebar() string {
 	var b strings.Builder
-	// The welcome screen already shows the big owl; once the conversation
-	// starts, it moves here and keeps reacting to every decision.
-	if len(m.transcript) > 0 {
-		b.WriteString(lipgloss.PlaceHorizontal(26, lipgloss.Center, m.mood.owl(m.animT())) + "\n")
-		b.WriteString(lipgloss.PlaceHorizontal(26, lipgloss.Center, sayStyle.Render(m.mood.say())) + "\n\n")
-	}
 	b.WriteString(headerStyle.Render("SESSION") + "\n")
+	fmt.Fprintf(&b, "engine: %s\n", m.engineName())
 	fmt.Fprintf(&b, "task: %s\n", orDash(m.lastTask))
 	fmt.Fprintf(&b, "provider: %s\n", orDash(m.lastProvider))
 	fmt.Fprintf(&b, "actions: %d\n", m.toolCalls)
@@ -457,7 +445,7 @@ func (m *model) renderSidebar() string {
 func (m *model) renderConfirmOverlay(base string) string {
 	req := m.pendingConfirm
 	var b strings.Builder
-	fmt.Fprintf(&b, "DevMind: %s   ", decisionStyle(string(req.decision)).Render(string(req.decision)))
+	fmt.Fprintf(&b, "Policy: %s   ", decisionStyle(string(req.decision)).Render(string(req.decision)))
 	b.WriteString(routeLineStyle.Render(fmt.Sprintf("risk %.1f", req.response.RiskScore)))
 	if req.response.AuditID != "" {
 		b.WriteString(routeLineStyle.Render(" · audit " + req.response.AuditID))
@@ -468,9 +456,7 @@ func (m *model) renderConfirmOverlay(base string) string {
 	}
 	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render("continue anyway?") + "  " +
 		decisionStyle("ALLOW").Render("[y] yes") + "  " + decisionStyle("BLOCK").Render("[n] no"))
-	owl := m.mood.owl(m.animT()) // the alert mood is set when the modal opens
-	card := lipgloss.JoinHorizontal(lipgloss.Center, owl, "   ", b.String())
-	overlay := modalStyle.Render(card)
+	overlay := modalStyle.Render(b.String())
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, overlay)
 }
 

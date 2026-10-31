@@ -40,7 +40,14 @@ func TestDumpScreens(t *testing.T) {
 	}
 	defer session.Close()
 
-	newModel := func() *model { return buildScreenModel(cfg, session) }
+	// The session runs without governance (no network). The welcome screen
+	// shows the engine a fresh install uses (local); the conversation
+	// screens show audit ids and DevMind verdicts, so they say devmind.
+	fresh := cfg
+	fresh.Governance.Enabled = true
+	withDevMind := fresh
+	withDevMind.Governance.Token = "dvm_screenshot"
+	newModel := func() *model { return buildScreenModel(withDevMind, session) }
 	save := func(name string, m *model) {
 		if err := os.WriteFile(filepath.Join(dir, name+".ansi"), []byte(m.View()), 0644); err != nil {
 			t.Fatal(err)
@@ -48,7 +55,7 @@ func TestDumpScreens(t *testing.T) {
 	}
 
 	// 1. Welcome screen.
-	save("welcome", newModel())
+	save("welcome", buildScreenModel(fresh, session))
 
 	// 2. Investigation in progress.
 	m := newModel()
@@ -70,7 +77,6 @@ func TestDumpScreens(t *testing.T) {
 		m.applyEvent(e)
 	}
 	m.refreshTranscript()
-	m.ticks, m.moodSince = 4, 0
 	save("investigating", m)
 
 	// 3. DevMind asks for review before a production change.
@@ -81,8 +87,7 @@ func TestDumpScreens(t *testing.T) {
 		Why: []string{"k8s_manifest on production (prod-eks)", "resource change on a Deployment serving traffic"},
 	}}
 	m.pendingConfirm = &req
-	m.setMood(moodAlert, 0)
-	m.ticks = m.moodSince + 9
+	m.setStatus(statusReview, 0)
 	save("review", m)
 
 	// 4. DevMind blocks a destructive action.
@@ -91,7 +96,7 @@ func TestDumpScreens(t *testing.T) {
 	for _, e := range []agent.Event{
 		{Type: agent.EventRoute, Task: "security_review", Provider: "anthropic"},
 		{Type: agent.EventToolResult, Tool: "bash", Engine: "infra", Decision: governance.Block, RiskScore: 9.8, Outcome: "blocked"},
-		{Type: agent.EventText, Text: "Policy blocked `kubectl delete namespace payments` on production (blast radius: org). I will not retry it another way; if it is really needed, it requires a justified break-glass."},
+		{Type: agent.EventText, Text: "Policy blocked `kubectl delete namespace payments` on production. I will not retry it another way; if it is really needed, a person has to run it outside Loom."},
 	} {
 		m.applyEvent(e)
 	}
@@ -102,7 +107,7 @@ func TestDumpScreens(t *testing.T) {
 // startRunForScreenshot mirrors startRun without launching the agent.
 func (m *model) startRunForScreenshot(prompt string) {
 	m.running = true
-	m.setMood(moodThinking, 0)
+	m.setStatus(statusThinking, 0)
 	m.transcript = append(m.transcript, promptMarkStyle.Render("› ")+userLineStyle.Render(prompt))
 }
 
@@ -117,7 +122,7 @@ func buildScreenModel(cfg config.Config, session *agent.Session) *model {
 	ti.Placeholder = "what should we investigate?"
 	ti.Prompt = ""
 	m.input = ti
-	m.spinner = spinner.New()
+	m.spinner = spinner.New(spinner.WithSpinner(spinner.Dot))
 	m.viewport = viewport.New(80, 20)
 	m.Update(tea.WindowSizeMsg{Width: 118, Height: 34})
 	return m
