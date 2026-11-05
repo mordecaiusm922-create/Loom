@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/mordecaiusm922-create/grantline/internal/config"
 )
 
 func TestInitConfigIsReadableOnlyByItsOwner(t *testing.T) {
@@ -69,5 +71,25 @@ func TestInitMigratesALegacyLoomConfig(t *testing.T) {
 		if info, _ := os.Stat("grantline.config.json"); info.Mode().Perm()&0o077 != 0 {
 			t.Fatalf("mode = %o, want owner-only", info.Mode().Perm())
 		}
+	}
+}
+
+func TestDoctorFailsOnlyForAMissingKeyThatIsRoutedTo(t *testing.T) {
+	cfg := config.Default()
+	cfg.DefaultProvider = "openrouter"
+	cfg.Routing = []config.RoutingRule{{Task: "planning", Provider: "openrouter"}}
+	cfg.CustomProviders = []config.CustomProviderConfig{
+		{ID: "openrouter", BaseURL: "https://openrouter.ai/api/v1", APIKeyEnv: "TEST_OPENROUTER_KEY"},
+		{ID: "groq", BaseURL: "https://api.groq.com/openai/v1", APIKeyEnv: "TEST_GROQ_KEY"},
+	}
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("TEST_GROQ_KEY", "")
+	t.Setenv("TEST_OPENROUTER_KEY", "sk-or-v1-\x16")
+	if got := checkProviderKeys(cfg); got != 1 {
+		t.Fatalf("failures = %d, want 1 (only the routed provider with a bad key)", got)
+	}
+	t.Setenv("TEST_OPENROUTER_KEY", "sk-or-v1-abc")
+	if got := checkProviderKeys(cfg); got != 0 {
+		t.Fatalf("failures = %d, want 0 with a valid routed key", got)
 	}
 }

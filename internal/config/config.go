@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -256,6 +257,9 @@ func Load(path string) (Config, error) {
 	case err != nil:
 		return Config{}, err
 	default:
+		// Windows PowerShell 5.1 (Set-Content, Out-File, >) writes a UTF-8
+		// byte order mark that encoding/json rejects.
+		data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 		if err := json.Unmarshal(data, &cfg); err != nil {
 			return Config{}, err
 		}
