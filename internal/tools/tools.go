@@ -156,8 +156,14 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 	var decision *governance.EvaluateResponse
 	var err error
 	engineUsed := "policy"
+	operation := "execute"
 	if isShellTool(name) {
 		if command, _ := input["command"].(string); command != "" {
+			if isReadOnlyShellLine(command) {
+				// Still evaluated by the policy engine, which keeps the final
+				// word; the operation tells it this line only reads.
+				operation = "read"
+			}
 			if changeType, isChange := iacChangeType(command); isChange {
 				// Fail-safe: an infrastructure change whose target cannot be
 				// resolved is evaluated as production. Reads are not, so an
@@ -176,7 +182,7 @@ func (r *Registry) Execute(ctx context.Context, name string, input map[string]an
 		}
 	}
 	if decision == nil && err == nil {
-		decision, err = r.gov.EvaluateAction(ctx, r.agentID, name, "execute", fmt.Sprintf("%v", input), affectsProduction)
+		decision, err = r.gov.EvaluateAction(ctx, r.agentID, name, operation, fmt.Sprintf("%v", input), affectsProduction)
 	}
 	if err != nil {
 		return "", fmt.Errorf("governance check failed: %w", err)

@@ -64,12 +64,17 @@ func catastrophicReason(payload string) string {
 	return ""
 }
 
-func (LocalEngine) EvaluateAction(_ context.Context, _ string, tool, _ string, payload string, affectsProduction bool) (*EvaluateResponse, error) {
+func (LocalEngine) EvaluateAction(_ context.Context, _ string, tool, operation string, payload string, affectsProduction bool) (*EvaluateResponse, error) {
 	if reason := catastrophicReason(payload); reason != "" {
 		return localDecision(Block, 100, reason+" is always blocked"), nil
 	}
 	if readOnlyTools[tool] {
 		return localDecision(Allow, 0, "read-only tool"), nil
+	}
+	// The tool registry sets operation "read" only for a shell line whose
+	// every command is on its read-only allowlist (tools.isReadOnlyShellLine).
+	if operation == "read" {
+		return localDecision(Allow, 0, "read-only command"), nil
 	}
 	why := "this action can change state, so it needs your confirmation"
 	if affectsProduction {
