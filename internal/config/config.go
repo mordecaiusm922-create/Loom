@@ -218,7 +218,6 @@ func Default() Config {
 	cfg.Providers.Ollama.Model = "qwen2.5-coder:7b"
 	cfg.Providers.Ollama.BaseURL = "http://localhost:11434"
 	cfg.Routing = []RoutingRule{
-		{Task: "trivial_edit", Provider: "ollama"},
 		{Task: "planning", Provider: "anthropic"},
 		{Task: "security_review", Provider: "anthropic"},
 		{Task: "incident_response", Provider: "anthropic"},
