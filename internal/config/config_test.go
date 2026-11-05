@@ -223,3 +223,14 @@ func TestLoadWithoutAnyConfigKeepsGovernanceOn(t *testing.T) {
 		t.Fatalf("governance = %+v, want enabled by default", cfg.Governance)
 	}
 }
+
+func TestLoadAcceptsAUTF8ByteOrderMark(t *testing.T) {
+	path := t.TempDir() + "/grantline.config.json"
+	if err := os.WriteFile(path, []byte("\xef\xbb\xbf"+`{"default_provider":"openrouter"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil || cfg.DefaultProvider != "openrouter" {
+		t.Fatalf("Load = %q, %v; want the BOM ignored", cfg.DefaultProvider, err)
+	}
+}
