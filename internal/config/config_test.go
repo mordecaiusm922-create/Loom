@@ -25,8 +25,8 @@ func TestRouteForPromptRecognizesNonEnglishSynonyms(t *testing.T) {
 func TestRouteForPromptAcceptsExplicitTask(t *testing.T) {
 	cfg := Default()
 	route := cfg.RouteForPrompt("write a deployment plan", "trivial_edit")
-	if route.Task != "trivial_edit" || route.Provider != "ollama" {
-		t.Fatalf("route = %#v, want explicit local route", route)
+	if route.Task != "trivial_edit" || route.Provider != "anthropic" {
+		t.Fatalf("route = %#v, want the explicit task on the default provider", route)
 	}
 }
 
@@ -232,5 +232,16 @@ func TestLoadAcceptsAUTF8ByteOrderMark(t *testing.T) {
 	cfg, err := Load(path)
 	if err != nil || cfg.DefaultProvider != "openrouter" {
 		t.Fatalf("Load = %q, %v; want the BOM ignored", cfg.DefaultProvider, err)
+	}
+}
+
+// A fresh `grantline init` config must answer every task type with the one
+// provider the user configured a key for, not a local Ollama they may not run.
+func TestDefaultConfigRoutesEveryTaskToTheDefaultProvider(t *testing.T) {
+	cfg := Default()
+	for _, task := range []string{"trivial_edit", "planning", "security_review", "incident_response"} {
+		if got := cfg.ProviderFor(task); got != cfg.DefaultProvider {
+			t.Fatalf("task %s routes to %q, want the default provider %q", task, got, cfg.DefaultProvider)
+		}
 	}
 }
