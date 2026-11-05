@@ -457,7 +457,7 @@ func (m *model) renderSidebar() string {
 func (m *model) renderConfirmOverlay(base string) string {
 	req := m.pendingConfirm
 	var b strings.Builder
-	fmt.Fprintf(&b, "DevMind: %s   ", decisionStyle(string(req.decision)).Render(string(req.decision)))
+	fmt.Fprintf(&b, "Policy: %s   ", decisionStyle(string(req.decision)).Render(string(req.decision)))
 	b.WriteString(routeLineStyle.Render(fmt.Sprintf("risk %.1f", req.response.RiskScore)))
 	if req.response.AuditID != "" {
 		b.WriteString(routeLineStyle.Render(" · audit " + req.response.AuditID))

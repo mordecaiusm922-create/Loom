@@ -240,7 +240,7 @@ func (r *Registry) emit(event AuditEvent) {
 }
 
 func confirmInTerminal(decision governance.Decision, response *governance.EvaluateResponse) bool {
-	fmt.Fprintf(os.Stderr, "\n[grantline] DevMind: %s (risk_score=%.1f)\n", decision, response.RiskScore)
+	fmt.Fprintf(os.Stderr, "\n[grantline] policy: %s (risk_score=%.1f)\n", decision, response.RiskScore)
 	if response.AuditID != "" {
 		fmt.Fprintf(os.Stderr, "  audit_id: %s\n", response.AuditID)
 	}
