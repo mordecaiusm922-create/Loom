@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -120,8 +119,13 @@ func (p *OpenAICompatibleProvider) Complete(ctx context.Context, req CompletionR
 	if p.Model == "" {
 		return nil, fmt.Errorf("model is required for provider %q", p.ProviderName)
 	}
-	if p.APIKeyEnv != "" && os.Getenv(p.APIKeyEnv) == "" {
-		return nil, fmt.Errorf("environment variable %s is required for provider %q", p.APIKeyEnv, p.ProviderName)
+	apiKey := ""
+	if p.APIKeyEnv != "" {
+		key, err := apiKeyFromEnv(p.APIKeyEnv)
+		if err != nil {
+			return nil, fmt.Errorf("provider %q: %w", p.ProviderName, err)
+		}
+		apiKey = key
 	}
 
 	tools := make([]openAIToolSpec, 0, len(req.Tools))
@@ -169,13 +173,16 @@ func (p *OpenAICompatibleProvider) Complete(ctx context.Context, req CompletionR
 			return nil, err
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
-		if p.APIKeyEnv != "" {
-			httpReq.Header.Set("Authorization", "Bearer "+os.Getenv(p.APIKeyEnv))
+		if apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 		}
 		return httpReq, nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	if (status == http.StatusUnauthorized || status == http.StatusForbidden) && apiKey != "" {
+		return nil, rejectedKeyError(fmt.Sprintf("provider %q", p.ProviderName), p.APIKeyEnv, status)
 	}
 	if status < 200 || status >= 300 {
 		return nil, fmt.Errorf("OpenAI-compatible provider returned HTTP %d%s: %s", status, attemptsSuffix(attempts), string(raw))
