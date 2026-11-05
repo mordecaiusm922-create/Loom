@@ -66,30 +66,30 @@ func catastrophicReason(payload string) string {
 
 func (LocalEngine) EvaluateAction(_ context.Context, _ string, tool, _ string, payload string, affectsProduction bool) (*EvaluateResponse, error) {
 	if reason := catastrophicReason(payload); reason != "" {
-		return localDecision(Block, 100, "local policy: "+reason+" is always blocked"), nil
+		return localDecision(Block, 100, reason+" is always blocked"), nil
 	}
 	if readOnlyTools[tool] {
-		return localDecision(Allow, 0, "local policy: read-only tool"), nil
+		return localDecision(Allow, 0, "read-only tool"), nil
 	}
-	why := "local policy: this action can change state, so it needs your confirmation"
+	why := "this action can change state, so it needs your confirmation"
 	if affectsProduction {
-		why = "local policy: this action can change production, so it needs your confirmation"
+		why = "this action can change production, so it needs your confirmation"
 	}
 	return localDecision(Review, 50, why), nil
 }
 
 func (LocalEngine) EvaluateChange(_ context.Context, _ string, changeType, _ string, payload string, _ bool, blastRadius string) (*EvaluateResponse, error) {
 	if reason := catastrophicReason(payload); reason != "" {
-		return localDecision(Block, 100, "local policy: "+reason+" is always blocked"), nil
+		return localDecision(Block, 100, reason+" is always blocked"), nil
 	}
 	switch strings.ToLower(blastRadius) {
 	case "org", "account":
-		return localDecision(Escalate, 90, "local policy: destructive change with organization-wide blast radius"), nil
+		return localDecision(Escalate, 90, "destructive change with organization-wide blast radius"), nil
 	}
 	if changeType == "terraform_plan" {
-		return localDecision(Allow, 0, "local policy: terraform plan does not change infrastructure"), nil
+		return localDecision(Allow, 0, "terraform plan does not change infrastructure"), nil
 	}
-	return localDecision(Review, 60, "local policy: infrastructure change ("+changeType+") needs your confirmation"), nil
+	return localDecision(Review, 60, "infrastructure change ("+changeType+") needs your confirmation"), nil
 }
 
 func localDecision(d Decision, score float64, why string) *EvaluateResponse {

@@ -51,6 +51,24 @@ grantline doctor                     # checks your shell, kubectl/terraform and 
 grantline chat                       # ask it to investigate something; every change asks you first
 ```
 
+On Windows (PowerShell), run one command per line; Windows PowerShell 5.1 does
+not accept `&&`:
+
+```powershell
+go install github.com/mordecaiusm922-create/grantline/cmd/grantline@latest
+$env:Path += ";$(go env GOPATH)\bin"
+grantline init
+$env:ANTHROPIC_API_KEY = "sk-ant-..."   # quotes required; paste the complete key
+grantline doctor                        # reports a missing, malformed or wrong-provider key without printing it
+grantline chat
+```
+
+`grantline doctor` checks the key of every configured provider: a key with
+pasted control characters, or one that does not start with the usual prefix
+for its provider (for example `sk-or-` for OpenRouter), is reported before
+the first request. The agent runs commands with PowerShell 7 (`pwsh`); install
+it with `winget install Microsoft.PowerShell` if `doctor` asks for it.
+
 No account needed: the built-in local policy blocks catastrophic commands and asks before any change. Tried it? [Open an issue](https://github.com/mordecaiusm922-create/grantline/issues/new) — even "this confused me" helps.
 
 Grantline is a governed agent harness for SRE, DevOps, Platform Engineering and Cloud Security.

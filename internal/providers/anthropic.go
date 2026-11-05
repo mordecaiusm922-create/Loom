@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -21,9 +20,9 @@ type AnthropicProvider struct {
 }
 
 func NewAnthropicProvider(model string) (*AnthropicProvider, error) {
-	key := os.Getenv("ANTHROPIC_API_KEY")
-	if key == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY is not set")
+	key, err := apiKeyFromEnv("ANTHROPIC_API_KEY")
+	if err != nil {
+		return nil, err
 	}
 	if model == "" {
 		model = "claude-sonnet-4-6"
@@ -109,6 +108,9 @@ func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest)
 	})
 	if err != nil {
 		return nil, err
+	}
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		return nil, rejectedKeyError("Anthropic", "ANTHROPIC_API_KEY", status)
 	}
 	if status < 200 || status >= 300 {
 		return nil, fmt.Errorf("anthropic returned HTTP %d%s: %s", status, attemptsSuffix(attempts), string(raw))

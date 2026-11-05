@@ -13,6 +13,7 @@ import (
 	"github.com/mordecaiusm922-create/grantline/internal/agent"
 	"github.com/mordecaiusm922-create/grantline/internal/config"
 	"github.com/mordecaiusm922-create/grantline/internal/governance"
+	"github.com/mordecaiusm922-create/grantline/internal/providers"
 	"github.com/mordecaiusm922-create/grantline/internal/runbook"
 	"github.com/mordecaiusm922-create/grantline/internal/tui"
 )
@@ -261,11 +262,7 @@ func cmdDoctor() {
 		fmt.Println("  governance: ERROR (governance.enabled must be true)")
 		failures++
 	}
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		fmt.Println("  anthropic: API key missing (required only when routed to Anthropic)")
-	} else {
-		fmt.Println("  anthropic: API key configured")
-	}
+	failures += checkProviderKeys(cfg)
 	fmt.Printf("  ollama: configured at %s (connectivity is checked when used)\n", cfg.Providers.Ollama.BaseURL)
 	if cfg.Sre.ShellName() == config.ShellBash {
 		if _, err := exec.LookPath("bash"); err == nil {
@@ -361,4 +358,42 @@ func presence(ok bool) string {
 		return "OK"
 	}
 	return "not found in PATH"
+}
+
+// checkProviderKeys reports the API key of every configured provider without
+// printing it. A provider that the configuration routes to must have a
+// usable key; the others are informational.
+func checkProviderKeys(cfg config.Config) int {
+	used := map[string]bool{cfg.DefaultProvider: true}
+	for _, rule := range cfg.Routing {
+		used[rule.Provider] = true
+	}
+	failures := 0
+	report := func(name, envName, baseURL string) {
+		label := "  " + name + ": "
+		err := providers.CheckAPIKey(envName)
+		switch {
+		case err != nil && used[name]:
+			fmt.Printf("%sERROR -- %v\n", label, err)
+			failures++
+		case err != nil:
+			fmt.Printf("%sAPI key not set (%s; needed only when a task is routed to it)\n", label, envName)
+		default:
+			prefix := providers.ExpectedKeyPrefix(baseURL)
+			if prefix != "" && !providers.KeyHasPrefix(envName, prefix) {
+				fmt.Printf("%sWARNING -- %s does not start with %q, the usual prefix for this provider; check that you copied the right key\n", label, envName, prefix)
+			} else {
+				fmt.Printf("%sAPI key configured (%s)\n", label, envName)
+			}
+		}
+	}
+	report("anthropic", "ANTHROPIC_API_KEY", "https://api.anthropic.com")
+	for _, p := range cfg.CustomProviders {
+		if p.APIKeyEnv == "" {
+			fmt.Printf("  %s: no API key configured (%s)\n", p.ID, p.BaseURL)
+			continue
+		}
+		report(p.ID, p.APIKeyEnv, p.BaseURL)
+	}
+	return failures
 }
